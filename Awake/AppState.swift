@@ -105,6 +105,7 @@ class AppState: ObservableObject {
         jiggleMouse = d.object(forKey: "jiggleMouse") as? Bool ?? false
         setupScheduleTimer()
         if jiggleMouse { startJiggleTimer() }
+        if preventScreenLock { enableScreenLockPrevention() }
         updateSchedule()
     }
 
@@ -250,25 +251,16 @@ class AppState: ObservableObject {
 
     // MARK: - Screen lock prevention
 
-    private var savedAskForPassword: Int?
-
     private func enableScreenLockPrevention() {
-        guard savedAskForPassword == nil else { return }
         let domain = "com.apple.screensaver" as CFString
-        let key    = "askForPassword" as CFString
-        let existing = CFPreferencesCopyValue(key, domain, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
-        savedAskForPassword = (existing as? NSNumber)?.intValue ?? 1
-        CFPreferencesSetValue(key, NSNumber(value: 0), domain, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
+        CFPreferencesSetValue("askForPassword" as CFString, NSNumber(value: 0), domain, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
         CFPreferencesSynchronize(domain, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
     }
 
     private func disableScreenLockPrevention() {
-        guard let saved = savedAskForPassword else { return }
         let domain = "com.apple.screensaver" as CFString
-        let key    = "askForPassword" as CFString
-        CFPreferencesSetValue(key, NSNumber(value: saved), domain, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
+        CFPreferencesSetValue("askForPassword" as CFString, NSNumber(value: 1), domain, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
         CFPreferencesSynchronize(domain, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
-        savedAskForPassword = nil
     }
 
     // MARK: - Mouse jiggle
@@ -304,6 +296,5 @@ class AppState: ObservableObject {
         jiggleTimer?.invalidate()
         if systemAssertionID != 0 { IOPMAssertionRelease(systemAssertionID) }
         releaseDisplayAssertion()
-        disableScreenLockPrevention()
     }
 }
