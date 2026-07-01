@@ -279,15 +279,33 @@ class AppState: ObservableObject {
     // MARK: - Screen lock prevention
 
     private func enableScreenLockPrevention() {
-        let domain = "com.apple.screensaver" as CFString
-        CFPreferencesSetValue("askForPassword" as CFString, NSNumber(value: 0), domain, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
-        CFPreferencesSynchronize(domain, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
+        applyScreenLockPref(0)
     }
 
     private func disableScreenLockPrevention() {
+        applyScreenLockPref(1)
+    }
+
+    private func applyScreenLockPref(_ value: Int) {
         let domain = "com.apple.screensaver" as CFString
-        CFPreferencesSetValue("askForPassword" as CFString, NSNumber(value: 1), domain, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
+        let key = "askForPassword" as CFString
+        let num = NSNumber(value: value)
+
+        // Write to both ByHost and regular domains — location varies by macOS version
+        CFPreferencesSetValue(key, num, domain, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
         CFPreferencesSynchronize(domain, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
+        CFPreferencesSetValue(key, num, domain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+        CFPreferencesSynchronize(domain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+
+        // Notify the screensaver daemon to reload prefs, then restart it so the change takes effect
+        DistributedNotificationCenter.default().post(
+            name: NSNotification.Name("com.apple.screensaver.configurationChanged"),
+            object: nil
+        )
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
+        proc.arguments = ["ScreenSaverAgent"]
+        try? proc.run()
     }
 
     // MARK: - Mouse jiggle
