@@ -14,8 +14,6 @@ struct AppMenu: View {
             set: { _ in state.toggleManual() }
         ))
 
-        Toggle("Move Mouse", isOn: $state.jiggleMouse)
-
         Picker("When Inactive For", selection: $state.displayDimDelay) {
             ForEach(DisplayDimDelay.allCases, id: \.rawValue) {
                 Text($0.label).tag($0)
