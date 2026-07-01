@@ -18,7 +18,7 @@ struct AwakeApp: App {
                 .environmentObject(appState)
         }
         .windowResizability(.contentSize)
-        .defaultSize(width: 440, height: 720)
+        .defaultSize(width: 440, height: 800)
         .defaultPosition(.center)
     }
 }

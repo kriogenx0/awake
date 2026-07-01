@@ -98,7 +98,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(minWidth: 420)
+        .frame(minWidth: 420, minHeight: 780)
     }
 
     private func hourLabel(_ hour: Int) -> String {
