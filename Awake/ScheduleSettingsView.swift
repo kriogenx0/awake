@@ -33,27 +33,32 @@ struct SettingsView: View {
             Section("Display") {
                 Toggle("Allow display sleep without lock", isOn: $state.preventScreenLock)
 
-                LabeledContent("When inactive for") {
-                    Picker("When inactive for", selection: $state.displayDimDelay) {
-                        ForEach(DisplayDimDelay.allCases, id: \.rawValue) {
-                            Text($0.label).tag($0)
+                LabeledContent("When Inactive") {
+                    HStack(spacing: 6) {
+                        Text("For...")
+                            .foregroundStyle(.secondary)
+                        Picker("duration", selection: $state.displayDimDelay) {
+                            ForEach(DisplayDimDelay.allCases, id: \.rawValue) {
+                                Text($0.label).tag($0)
+                            }
                         }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .frame(width: 130)
-                }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(width: 120)
 
-                if state.displayDimDelay != .never {
-                    LabeledContent("Action") {
-                        Picker("Action", selection: $state.displayInactiveAction) {
+                        Text("...Then")
+                            .foregroundStyle(.secondary)
+                            .opacity(state.displayDimDelay == .never ? 0.4 : 1)
+                        Picker("action", selection: $state.displayInactiveAction) {
                             ForEach(DisplayInactiveAction.allCases, id: \.rawValue) {
                                 Text($0.label).tag($0)
                             }
                         }
                         .labelsHidden()
                         .pickerStyle(.menu)
-                        .frame(width: 160)
+                        .frame(width: 150)
+                        .disabled(state.displayDimDelay == .never)
+                        .opacity(state.displayDimDelay == .never ? 0.4 : 1)
                     }
                 }
             }

@@ -20,13 +20,12 @@ struct AppMenu: View {
             }
         }
 
-        if state.displayDimDelay != .never {
-            Picker("Action", selection: $state.displayInactiveAction) {
-                ForEach(DisplayInactiveAction.allCases, id: \.rawValue) {
-                    Text($0.label).tag($0)
-                }
+        Picker("…Then", selection: $state.displayInactiveAction) {
+            ForEach(DisplayInactiveAction.allCases, id: \.rawValue) {
+                Text($0.label).tag($0)
             }
         }
+        .disabled(state.displayDimDelay == .never)
 
         Divider()
 
