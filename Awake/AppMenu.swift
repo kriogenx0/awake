@@ -14,22 +14,26 @@ struct AppMenu: View {
             set: { _ in state.toggleManual() }
         ))
 
-        Picker("When Inactive For", selection: $state.displayDimDelay) {
-            ForEach(DisplayDimDelay.allCases, id: \.rawValue) {
-                Text($0.label).tag($0)
+        Menu("When Inactive") {
+            Menu("For...") {
+                ForEach(DisplayDimDelay.allCases, id: \.rawValue) { delay in
+                    Button {
+                        state.displayDimDelay = delay
+                    } label: {
+                        HStack {
+                            Text(delay.label)
+                            if state.displayDimDelay == delay {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
             }
         }
-
-        Picker("…Then", selection: $state.displayInactiveAction) {
-            ForEach(DisplayInactiveAction.allCases, id: \.rawValue) {
-                Text($0.label).tag($0)
-            }
-        }
-        .disabled(state.displayDimDelay == .never)
 
         Divider()
 
-        Toggle("Schedule", isOn: Binding(
+        Toggle("Stay Awake on Schedule", isOn: Binding(
             get: { state.scheduleEnabled },
             set: { state.setScheduleEnabled($0) }
         ))

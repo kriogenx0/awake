@@ -22,18 +22,6 @@ enum DisplayDimDelay: Int, CaseIterable {
     var seconds: TimeInterval { TimeInterval(rawValue) * 60 }
 }
 
-enum DisplayInactiveAction: Int, CaseIterable {
-    case dim = 0
-    case turnOff = 1
-
-    var label: String {
-        switch self {
-        case .dim:     return "Dim the display"
-        case .turnOff: return "Turn off the display"
-        }
-    }
-}
-
 class AppState: ObservableObject {
     @Published private(set) var caffeineActive = false
     @Published private(set) var scheduleEnabled: Bool
@@ -53,11 +41,8 @@ class AppState: ObservableObject {
             updateDisplayAssertion()
         }
     }
-    @Published var displayInactiveAction: DisplayInactiveAction {
-        didSet {
-            UserDefaults.standard.set(displayInactiveAction.rawValue, forKey: "displayInactiveAction")
-            updateDisplayAssertion()
-        }
+    @Published var dimOpacity: Double {
+        didSet { UserDefaults.standard.set(dimOpacity, forKey: "dimOpacity") }
     }
     @Published var preventScreenLock: Bool {
         didSet {
@@ -87,6 +72,8 @@ class AppState: ObservableObject {
     private var scheduleTimer: Timer?
     private var dimCheckTimer: Timer?
     private var jiggleTimer: Timer?
+    private var displayDidTrigger = false
+    private let overlay = DimOverlayController()
 
     init() {
         let d = UserDefaults.standard
@@ -95,7 +82,7 @@ class AppState: ObservableObject {
         endHour          = d.object(forKey: "endHour")          as? Int  ?? 18
         activeDays       = Set(d.array(forKey: "activeDays")    as? [Int] ?? [2, 3, 4, 5, 6])
         displayDimDelay  = DisplayDimDelay(rawValue: d.object(forKey: "displayDimDelay") as? Int ?? 0) ?? .never
-        displayInactiveAction = DisplayInactiveAction(rawValue: d.object(forKey: "displayInactiveAction") as? Int ?? 0) ?? .dim
+        dimOpacity       = d.object(forKey: "dimOpacity")       as? Double ?? 0.5
         preventScreenLock = d.object(forKey: "preventScreenLock") as? Bool ?? false
 
         let service = SMAppService.mainApp
@@ -156,30 +143,30 @@ class AppState: ObservableObject {
         releaseDisplayAssertion()
         dimCheckTimer?.invalidate()
         dimCheckTimer = nil
+        overlay.hide()
         caffeineActive = false
     }
 
-    // MARK: - Display sleep
+    // MARK: - Display / overlay
 
     private func updateDisplayAssertion() {
         dimCheckTimer?.invalidate()
         dimCheckTimer = nil
+        overlay.hide()
         guard caffeineActive else { return }
         displayDidTrigger = false
 
-        if displayDimDelay == .never {
-            holdDisplayAssertion()
-        } else {
+        holdDisplayAssertion()
+
+        if displayDimDelay != .never {
             applyDisplayPolicy()
-            let t = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            let t = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
                 self?.applyDisplayPolicy()
             }
             RunLoop.main.add(t, forMode: .common)
             dimCheckTimer = t
         }
     }
-
-    private var displayDidTrigger = false
 
     private func applyDisplayPolicy() {
         let idle = [CGEventType.mouseMoved, .leftMouseDown, .rightMouseDown, .keyDown, .scrollWheel]
@@ -189,22 +176,13 @@ class AppState: ObservableObject {
         if idle >= displayDimDelay.seconds {
             if !displayDidTrigger {
                 displayDidTrigger = true
-                releaseDisplayAssertion()
-                if displayInactiveAction == .turnOff {
-                    sleepDisplay()
-                }
+                overlay.show(opacity: dimOpacity)
             }
         } else {
-            displayDidTrigger = false
-            holdDisplayAssertion()
-        }
-    }
-
-    private func sleepDisplay() {
-        let r = IORegistryEntryFromPath(kIOMainPortDefault, "IOService:/IOResources/IODisplayWrangler")
-        if r != MACH_PORT_NULL {
-            IORegistryEntrySetCFProperty(r, "IORequestIdle" as CFString, true as CFTypeRef)
-            IOObjectRelease(r)
+            if displayDidTrigger {
+                displayDidTrigger = false
+                overlay.hide()
+            }
         }
     }
 
@@ -264,13 +242,11 @@ class AppState: ObservableObject {
         let key = "askForPassword" as CFString
         let num = NSNumber(value: value)
 
-        // Write to both ByHost and regular domains — location varies by macOS version
         CFPreferencesSetValue(key, num, domain, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
         CFPreferencesSynchronize(domain, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
         CFPreferencesSetValue(key, num, domain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
         CFPreferencesSynchronize(domain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
 
-        // Notify the screensaver daemon to reload prefs, then restart it so the change takes effect
         DistributedNotificationCenter.default().post(
             name: NSNotification.Name("com.apple.screensaver.configurationChanged"),
             object: nil
@@ -312,6 +288,7 @@ class AppState: ObservableObject {
         scheduleTimer?.invalidate()
         dimCheckTimer?.invalidate()
         jiggleTimer?.invalidate()
+        overlay.hide()
         if systemAssertionID != 0 { IOPMAssertionRelease(systemAssertionID) }
         releaseDisplayAssertion()
     }

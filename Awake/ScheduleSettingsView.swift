@@ -45,20 +45,18 @@ struct SettingsView: View {
                         .labelsHidden()
                         .pickerStyle(.menu)
                         .frame(width: 120)
+                    }
+                }
 
-                        Text("...Then")
-                            .foregroundStyle(.secondary)
-                            .opacity(state.displayDimDelay == .never ? 0.4 : 1)
-                        Picker("action", selection: $state.displayInactiveAction) {
-                            ForEach(DisplayInactiveAction.allCases, id: \.rawValue) {
-                                Text($0.label).tag($0)
-                            }
+                if state.displayDimDelay != .never {
+                    LabeledContent("Overlay Darkness") {
+                        HStack {
+                            Slider(value: $state.dimOpacity, in: 0.1...0.95)
+                                .frame(width: 160)
+                            Text("\(Int(state.dimOpacity * 100))%")
+                                .foregroundStyle(.secondary)
+                                .frame(width: 36, alignment: .trailing)
                         }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
-                        .frame(width: 150)
-                        .disabled(state.displayDimDelay == .never)
-                        .opacity(state.displayDimDelay == .never ? 0.4 : 1)
                     }
                 }
             }
