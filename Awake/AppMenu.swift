@@ -35,16 +35,9 @@ struct AppMenu: View {
             }
         }
 
-        Picker("…Then", selection: $state.displayInactiveAction) {
-            ForEach(DisplayInactiveAction.allCases, id: \.rawValue) {
-                Text($0.label).tag($0)
-            }
-        }
-        .disabled(state.displayDimDelay == .never)
-
         Divider()
 
-        Toggle("Schedule", isOn: Binding(
+        Toggle("Stay Awake on Schedule", isOn: Binding(
             get: { state.scheduleEnabled },
             set: { state.setScheduleEnabled($0) }
         ))
