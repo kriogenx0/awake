@@ -32,8 +32,6 @@ struct SettingsView: View {
             }
 
             Section("Display") {
-                Toggle("Allow display sleep without lock", isOn: $state.preventScreenLock)
-
                 LabeledContent("When Inactive") {
                     HStack(spacing: 6) {
                         Text("For...")
@@ -60,60 +58,18 @@ struct SettingsView: View {
                         }
                     }
 
-                    LabeledContent("Preview") {
-                        Button { state.togglePreviewDim() } label: {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(LinearGradient(
-                                        colors: [Color(red: 0.25, green: 0.45, blue: 0.72),
-                                                 Color(red: 0.12, green: 0.22, blue: 0.48)],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    ))
-                                VStack(spacing: 0) {
-                                    Rectangle()
-                                        .fill(Color.white.opacity(0.18))
-                                        .frame(height: 9)
-                                    Spacer()
-                                    RoundedRectangle(cornerRadius: 4)
-                                        .fill(Color.white.opacity(0.12))
-                                        .frame(width: 80, height: 10)
-                                        .padding(.bottom, 4)
+                    if state.displayInactiveAction == .dim {
+                        LabeledContent("Preview") {
+                            Button {
+                                if isPreviewingDim {
+                                    state.stopPreviewDim()
+                                } else {
+                                    state.previewDim()
                                 }
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(Color.black.opacity(state.dimOpacity))
-                                    .animation(.easeInOut(duration: 0.15), value: state.dimOpacity)
-                                Text(state.previewDimActive ? "Click to hide" : "Click to preview")
-                                    .font(.caption)
-                                    .foregroundStyle(.white.opacity(0.7))
+                                isPreviewingDim.toggle()
+                            } label: {
+                                Text(isPreviewingDim ? "Stop Preview" : "Preview")
                             }
-                            .frame(width: 213, height: 120)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .stroke(state.previewDimActive ? Color.accentColor : Color.primary.opacity(0.15), lineWidth: state.previewDimActive ? 2 : 0.5)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-
-                if state.displayInactiveAction == .dim {
-                    LabeledContent("Dim amount") {
-                        Slider(value: $state.dimOpacity, in: 0.1...1.0)
-                            .frame(width: 160)
-                    }
-
-                    LabeledContent("Preview") {
-                        Button {
-                            if isPreviewingDim {
-                                state.stopPreviewDim()
-                            } else {
-                                state.previewDim()
-                            }
-                            isPreviewingDim.toggle()
-                        } label: {
-                            Text(isPreviewingDim ? "Stop Preview" : "Preview")
                         }
                     }
                 }
