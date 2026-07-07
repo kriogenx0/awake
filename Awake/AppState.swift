@@ -8,14 +8,18 @@ enum DisplayDimDelay: Int, CaseIterable {
     case never = 0
     case fiveMinutes = 5
     case tenMinutes = 10
+    case twentyMinutes = 20
+    case thirtyMinutes = 30
     case oneHour = 60
 
     var label: String {
         switch self {
-        case .never:        return "Never"
-        case .fiveMinutes:  return "5 minutes"
-        case .tenMinutes:   return "10 minutes"
-        case .oneHour:      return "1 hour"
+        case .never:          return "Never"
+        case .fiveMinutes:    return "5 minutes"
+        case .tenMinutes:     return "10 minutes"
+        case .twentyMinutes:  return "20 minutes"
+        case .thirtyMinutes:  return "30 minutes"
+        case .oneHour:        return "1 hour"
         }
     }
 
@@ -33,6 +37,8 @@ enum DisplayInactiveAction: Int, CaseIterable {
         }
     }
 }
+
+let defaultDimOpacity: Double = 0.8
 
 class AppState: ObservableObject {
     @Published private(set) var caffeineActive = false
@@ -57,6 +63,12 @@ class AppState: ObservableObject {
         didSet {
             UserDefaults.standard.set(displayInactiveAction.rawValue, forKey: "displayInactiveAction")
             updateDisplayAssertion()
+        }
+    }
+    @Published var dimOpacity: Double {
+        didSet {
+            UserDefaults.standard.set(dimOpacity, forKey: "dimOpacity")
+            if dimOverlay.isVisible { dimOverlay.show(opacity: dimOpacity) }
         }
     }
     @Published var preventScreenLock: Bool {
@@ -87,6 +99,7 @@ class AppState: ObservableObject {
     private var scheduleTimer: Timer?
     private var dimCheckTimer: Timer?
     private var jiggleTimer: Timer?
+    private let dimOverlay = DimOverlayController()
 
     init() {
         let d = UserDefaults.standard
@@ -96,6 +109,7 @@ class AppState: ObservableObject {
         activeDays       = Set(d.array(forKey: "activeDays")    as? [Int] ?? [2, 3, 4, 5, 6])
         displayDimDelay  = DisplayDimDelay(rawValue: d.object(forKey: "displayDimDelay") as? Int ?? 0) ?? .never
         displayInactiveAction = DisplayInactiveAction(rawValue: d.object(forKey: "displayInactiveAction") as? Int ?? 0) ?? .dim
+        dimOpacity        = d.object(forKey: "dimOpacity")        as? Double ?? defaultDimOpacity
         preventScreenLock = d.object(forKey: "preventScreenLock") as? Bool ?? false
 
         let service = SMAppService.mainApp
@@ -124,6 +138,15 @@ class AppState: ObservableObject {
         var days = activeDays
         if days.contains(day) { days.remove(day) } else { days.insert(day) }
         activeDays = days
+    }
+
+    func previewDim() {
+        dimOverlay.show(opacity: dimOpacity)
+    }
+
+    func stopPreviewDim() {
+        guard !(caffeineActive && displayDidTrigger && displayInactiveAction == .dim) else { return }
+        dimOverlay.hide()
     }
 
     var statusText: String {
@@ -155,6 +178,7 @@ class AppState: ObservableObject {
         releaseDisplayAssertion()
         dimCheckTimer?.invalidate()
         dimCheckTimer = nil
+        dimOverlay.hide()
         caffeineActive = false
     }
 
@@ -163,6 +187,7 @@ class AppState: ObservableObject {
     private func updateDisplayAssertion() {
         dimCheckTimer?.invalidate()
         dimCheckTimer = nil
+        dimOverlay.hide()
         guard caffeineActive else { return }
         displayDidTrigger = false
 
@@ -189,12 +214,14 @@ class AppState: ObservableObject {
             if !displayDidTrigger {
                 displayDidTrigger = true
                 releaseDisplayAssertion()
-                if displayInactiveAction == .turnOff {
-                    sleepDisplay()
+                switch displayInactiveAction {
+                case .dim:     dimOverlay.show(opacity: dimOpacity)
+                case .turnOff: sleepDisplay()
                 }
             }
         } else {
             displayDidTrigger = false
+            dimOverlay.hide()
             holdDisplayAssertion()
         }
     }

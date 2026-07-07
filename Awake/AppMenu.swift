@@ -14,16 +14,23 @@ struct AppMenu: View {
             set: { _ in state.toggleManual() }
         ))
 
-        Picker("When Inactive For", selection: $state.displayDimDelay) {
-            ForEach(DisplayDimDelay.allCases, id: \.rawValue) {
-                Text($0.label).tag($0)
+        Menu("Dim The Display After") {
+            ForEach(DisplayDimDelay.allCases, id: \.rawValue) { option in
+                Toggle(option.label, isOn: Binding(
+                    get: { state.displayDimDelay == option },
+                    set: { _ in state.displayDimDelay = option }
+                ))
             }
-        }
 
-        if state.displayDimDelay != .never {
-            Picker("Action", selection: $state.displayInactiveAction) {
-                ForEach(DisplayInactiveAction.allCases, id: \.rawValue) {
-                    Text($0.label).tag($0)
+            if state.displayDimDelay != .never {
+                Divider()
+                Text("Then...")
+
+                ForEach(DisplayInactiveAction.allCases, id: \.rawValue) { option in
+                    Toggle(option.label, isOn: Binding(
+                        get: { state.displayInactiveAction == option },
+                        set: { _ in state.displayInactiveAction = option }
+                    ))
                 }
             }
         }

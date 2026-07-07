@@ -11,6 +11,7 @@
 		CAFE0001000000000000000B /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE0002000000000000000B /* AppState.swift */; };
 		CAFE0001000000000000000C /* AppMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE0002000000000000000C /* AppMenu.swift */; };
 		CAFE0001000000000000000E /* ScheduleSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE0002000000000000001A /* ScheduleSettingsView.swift */; };
+		CAFE0001000000000000001B /* DimOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFE0002000000000000001B /* DimOverlay.swift */; };
 		CAFE0001000000000000000D /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CAFE0002000000000000000D /* IOKit.framework */; };
 /* End PBXBuildFile section */
 
@@ -19,6 +20,7 @@
 		CAFE0002000000000000000B /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		CAFE0002000000000000000C /* AppMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMenu.swift; sourceTree = "<group>"; };
 		CAFE0002000000000000001A /* ScheduleSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleSettingsView.swift; sourceTree = "<group>"; };
+		CAFE0002000000000000001B /* DimOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DimOverlay.swift; sourceTree = "<group>"; };
 		CAFE0002000000000000000D /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
 		CAFE0002000000000000000E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		CAFE0002000000000000000F /* Awake.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Awake.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -52,6 +54,7 @@
 				CAFE0002000000000000000B /* AppState.swift */,
 				CAFE0002000000000000000C /* AppMenu.swift */,
 				CAFE0002000000000000001A /* ScheduleSettingsView.swift */,
+				CAFE0002000000000000001B /* DimOverlay.swift */,
 				CAFE0002000000000000000E /* Info.plist */,
 			);
 			path = Awake;
@@ -145,6 +148,7 @@
 				CAFE0001000000000000000B /* AppState.swift in Sources */,
 				CAFE0001000000000000000C /* AppMenu.swift in Sources */,
 				CAFE0001000000000000000E /* ScheduleSettingsView.swift in Sources */,
+				CAFE0001000000000000001B /* DimOverlay.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -228,7 +232,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Awake/Info.plist;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.awake.app;
 				PRODUCT_NAME = $(TARGET_NAME);
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -246,7 +250,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Awake/Info.plist;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.awake.app;
 				PRODUCT_NAME = $(TARGET_NAME);
 				SWIFT_EMIT_LOC_STRINGS = YES;
