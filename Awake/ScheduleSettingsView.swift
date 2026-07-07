@@ -61,38 +61,40 @@ struct SettingsView: View {
                     }
 
                     LabeledContent("Preview") {
-                        ZStack {
-                            // Simulated desktop background
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(LinearGradient(
-                                    colors: [Color(red: 0.25, green: 0.45, blue: 0.72),
-                                             Color(red: 0.12, green: 0.22, blue: 0.48)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ))
-                            // Fake menu bar
-                            VStack(spacing: 0) {
-                                Rectangle()
-                                    .fill(Color.white.opacity(0.18))
-                                    .frame(height: 9)
-                                Spacer()
-                                // Fake dock
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color.white.opacity(0.12))
-                                    .frame(width: 80, height: 10)
-                                    .padding(.bottom, 4)
+                        Button { state.togglePreviewDim() } label: {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(LinearGradient(
+                                        colors: [Color(red: 0.25, green: 0.45, blue: 0.72),
+                                                 Color(red: 0.12, green: 0.22, blue: 0.48)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ))
+                                VStack(spacing: 0) {
+                                    Rectangle()
+                                        .fill(Color.white.opacity(0.18))
+                                        .frame(height: 9)
+                                    Spacer()
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(Color.white.opacity(0.12))
+                                        .frame(width: 80, height: 10)
+                                        .padding(.bottom, 4)
+                                }
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(Color.black.opacity(state.dimOpacity))
+                                    .animation(.easeInOut(duration: 0.15), value: state.dimOpacity)
+                                Text(state.previewDimActive ? "Click to hide" : "Click to preview")
+                                    .font(.caption)
+                                    .foregroundStyle(.white.opacity(0.7))
                             }
-                            // Dim overlay
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Color.black.opacity(state.dimOpacity))
-                                .animation(.easeInOut(duration: 0.15), value: state.dimOpacity)
+                            .frame(width: 213, height: 120)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(state.previewDimActive ? Color.accentColor : Color.primary.opacity(0.15), lineWidth: state.previewDimActive ? 2 : 0.5)
+                            )
                         }
-                        .frame(width: 213, height: 120)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color.primary.opacity(0.15), lineWidth: 0.5)
-                        )
+                        .buttonStyle(.plain)
                     }
                 }
 

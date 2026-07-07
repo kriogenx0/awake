@@ -60,7 +60,10 @@ class AppState: ObservableObject {
         }
     }
     @Published var dimOpacity: Double {
-        didSet { UserDefaults.standard.set(dimOpacity, forKey: "dimOpacity") }
+        didSet {
+            UserDefaults.standard.set(dimOpacity, forKey: "dimOpacity")
+            if previewDimActive { overlay.show(opacity: dimOpacity) }
+        }
     }
     @Published var dimOpacity: Double {
         didSet {
@@ -68,6 +71,7 @@ class AppState: ObservableObject {
             if dimOverlay.isVisible { dimOverlay.show(opacity: dimOpacity) }
         }
     }
+    @Published private(set) var previewDimActive = false
     @Published var preventScreenLock: Bool {
         didSet {
             UserDefaults.standard.set(preventScreenLock, forKey: "preventScreenLock")
@@ -96,12 +100,8 @@ class AppState: ObservableObject {
     private var scheduleTimer: Timer?
     private var dimCheckTimer: Timer?
     private var jiggleTimer: Timer?
-<<<<<<< HEAD
-    private let dimOverlay = DimOverlayController()
-=======
     private var displayDidTrigger = false
     private let overlay = DimOverlayController()
->>>>>>> 19e3cf4 (Replace system dim/sleep with custom dark overlay)
 
     init() {
         let d = UserDefaults.standard
@@ -111,11 +111,15 @@ class AppState: ObservableObject {
         activeDays       = Set(d.array(forKey: "activeDays")    as? [Int] ?? [2, 3, 4, 5, 6])
         displayDimDelay  = DisplayDimDelay(rawValue: d.object(forKey: "displayDimDelay") as? Int ?? 0) ?? .never
 <<<<<<< HEAD
+<<<<<<< HEAD
         displayInactiveAction = DisplayInactiveAction(rawValue: d.object(forKey: "displayInactiveAction") as? Int ?? 0) ?? .dim
         dimOpacity        = d.object(forKey: "dimOpacity")        as? Double ?? defaultDimOpacity
 =======
         dimOpacity       = d.object(forKey: "dimOpacity")       as? Double ?? 0.5
 >>>>>>> 19e3cf4 (Replace system dim/sleep with custom dark overlay)
+=======
+        dimOpacity       = d.object(forKey: "dimOpacity")       as? Double ?? 0.8
+>>>>>>> 497b8d4 (Preview thumbnail toggles real overlay; default darkness 80%)
         preventScreenLock = d.object(forKey: "preventScreenLock") as? Bool ?? false
 
         let service = SMAppService.mainApp
@@ -148,17 +152,22 @@ class AppState: ObservableObject {
     }
 
     func previewDim() {
-        dimOverlay.show(opacity: dimOpacity)
+        overlay.show(opacity: dimOpacity)
     }
 
     func stopPreviewDim() {
         guard !(caffeineActive && displayDidTrigger && displayInactiveAction == .dim) else { return }
-        dimOverlay.hide()
+        overlay.hide()
     }
 
     var statusText: String {
         let base = caffeineActive ? "Active" : "Inactive"
         return scheduleEnabled ? "\(base) · Scheduled" : base
+    }
+
+    func togglePreviewDim() {
+        previewDimActive.toggle()
+        if previewDimActive { overlay.show(opacity: dimOpacity) } else { overlay.hide() }
     }
 
     // MARK: - System sleep
@@ -189,7 +198,11 @@ class AppState: ObservableObject {
         dimOverlay.hide()
 =======
         overlay.hide()
+<<<<<<< HEAD
 >>>>>>> 19e3cf4 (Replace system dim/sleep with custom dark overlay)
+=======
+        previewDimActive = false
+>>>>>>> 497b8d4 (Preview thumbnail toggles real overlay; default darkness 80%)
         caffeineActive = false
     }
 
