@@ -8,19 +8,37 @@ enum DisplayDimDelay: Int, CaseIterable {
     case never = 0
     case fiveMinutes = 5
     case tenMinutes = 10
+    case twentyMinutes = 20
+    case thirtyMinutes = 30
     case oneHour = 60
 
     var label: String {
         switch self {
-        case .never:        return "Never"
-        case .fiveMinutes:  return "5 minutes"
-        case .tenMinutes:   return "10 minutes"
-        case .oneHour:      return "1 hour"
+        case .never:          return "Never"
+        case .fiveMinutes:    return "5 minutes"
+        case .tenMinutes:     return "10 minutes"
+        case .twentyMinutes:  return "20 minutes"
+        case .thirtyMinutes:  return "30 minutes"
+        case .oneHour:        return "1 hour"
         }
     }
 
     var seconds: TimeInterval { TimeInterval(rawValue) * 60 }
 }
+
+enum DisplayInactiveAction: Int, CaseIterable {
+    case dim = 0
+    case turnOff = 1
+
+    var label: String {
+        switch self {
+        case .dim:     return "Dim the display"
+        case .turnOff: return "Turn off the display"
+        }
+    }
+}
+
+let defaultDimOpacity: Double = 0.8
 
 class AppState: ObservableObject {
     @Published private(set) var caffeineActive = false
@@ -41,10 +59,16 @@ class AppState: ObservableObject {
             updateDisplayAssertion()
         }
     }
+    @Published var displayInactiveAction: DisplayInactiveAction {
+        didSet {
+            UserDefaults.standard.set(displayInactiveAction.rawValue, forKey: "displayInactiveAction")
+            updateDisplayAssertion()
+        }
+    }
     @Published var dimOpacity: Double {
         didSet {
             UserDefaults.standard.set(dimOpacity, forKey: "dimOpacity")
-            if previewDimActive { overlay.show(opacity: dimOpacity) }
+            if dimOverlay.isVisible { dimOverlay.show(opacity: dimOpacity) }
         }
     }
     @Published private(set) var previewDimActive = false
@@ -77,17 +101,18 @@ class AppState: ObservableObject {
     private var dimCheckTimer: Timer?
     private var jiggleTimer: Timer?
     private var displayDidTrigger = false
-    private let overlay = DimOverlayController()
+    private let dimOverlay = DimOverlayController()
 
     init() {
         let d = UserDefaults.standard
-        scheduleEnabled  = d.object(forKey: "scheduleEnabled")  as? Bool ?? true
-        startHour        = d.object(forKey: "startHour")        as? Int  ?? 9
-        endHour          = d.object(forKey: "endHour")          as? Int  ?? 18
-        activeDays       = Set(d.array(forKey: "activeDays")    as? [Int] ?? [2, 3, 4, 5, 6])
-        displayDimDelay  = DisplayDimDelay(rawValue: d.object(forKey: "displayDimDelay") as? Int ?? 0) ?? .never
-        dimOpacity       = d.object(forKey: "dimOpacity")       as? Double ?? 0.8
-        preventScreenLock = d.object(forKey: "preventScreenLock") as? Bool ?? false
+        scheduleEnabled       = d.object(forKey: "scheduleEnabled")  as? Bool ?? true
+        startHour             = d.object(forKey: "startHour")        as? Int  ?? 9
+        endHour               = d.object(forKey: "endHour")          as? Int  ?? 18
+        activeDays            = Set(d.array(forKey: "activeDays")    as? [Int] ?? [2, 3, 4, 5, 6])
+        displayDimDelay       = DisplayDimDelay(rawValue: d.object(forKey: "displayDimDelay") as? Int ?? 0) ?? .never
+        displayInactiveAction = DisplayInactiveAction(rawValue: d.object(forKey: "displayInactiveAction") as? Int ?? 0) ?? .dim
+        dimOpacity            = d.object(forKey: "dimOpacity")       as? Double ?? defaultDimOpacity
+        preventScreenLock     = d.object(forKey: "preventScreenLock") as? Bool ?? false
 
         let service = SMAppService.mainApp
         if service.status == .notRegistered { try? service.register() }
@@ -118,14 +143,20 @@ class AppState: ObservableObject {
         activeDays = days
     }
 
+    func previewDim() {
+        previewDimActive = true
+        dimOverlay.show(opacity: dimOpacity)
+    }
+
+    func stopPreviewDim() {
+        previewDimActive = false
+        guard !(caffeineActive && displayDidTrigger && displayInactiveAction == .dim) else { return }
+        dimOverlay.hide()
+    }
+
     var statusText: String {
         let base = caffeineActive ? "Active" : "Inactive"
         return scheduleEnabled ? "\(base) · Scheduled" : base
-    }
-
-    func togglePreviewDim() {
-        previewDimActive.toggle()
-        if previewDimActive { overlay.show(opacity: dimOpacity) } else { overlay.hide() }
     }
 
     // MARK: - System sleep
@@ -152,8 +183,7 @@ class AppState: ObservableObject {
         releaseDisplayAssertion()
         dimCheckTimer?.invalidate()
         dimCheckTimer = nil
-        overlay.hide()
-        previewDimActive = false
+        dimOverlay.hide()
         caffeineActive = false
     }
 
@@ -162,7 +192,7 @@ class AppState: ObservableObject {
     private func updateDisplayAssertion() {
         dimCheckTimer?.invalidate()
         dimCheckTimer = nil
-        overlay.hide()
+        if !previewDimActive { dimOverlay.hide() }
         guard caffeineActive else { return }
         displayDidTrigger = false
 
@@ -186,13 +216,24 @@ class AppState: ObservableObject {
         if idle >= displayDimDelay.seconds {
             if !displayDidTrigger {
                 displayDidTrigger = true
-                overlay.show(opacity: dimOpacity)
+                releaseDisplayAssertion()
+                switch displayInactiveAction {
+                case .dim:     dimOverlay.show(opacity: dimOpacity)
+                case .turnOff: sleepDisplay()
+                }
             }
         } else {
-            if displayDidTrigger {
-                displayDidTrigger = false
-                overlay.hide()
-            }
+            displayDidTrigger = false
+            if !previewDimActive { dimOverlay.hide() }
+            holdDisplayAssertion()
+        }
+    }
+
+    private func sleepDisplay() {
+        let r = IORegistryEntryFromPath(kIOMainPortDefault, "IOService:/IOResources/IODisplayWrangler")
+        if r != MACH_PORT_NULL {
+            IORegistryEntrySetCFProperty(r, "IORequestIdle" as CFString, true as CFTypeRef)
+            IOObjectRelease(r)
         }
     }
 
@@ -298,7 +339,7 @@ class AppState: ObservableObject {
         scheduleTimer?.invalidate()
         dimCheckTimer?.invalidate()
         jiggleTimer?.invalidate()
-        overlay.hide()
+        dimOverlay.hide()
         if systemAssertionID != 0 { IOPMAssertionRelease(systemAssertionID) }
         releaseDisplayAssertion()
     }

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var state: AppState
+    @State private var isPreviewingDim = false
 
     private let orderedDays: [(Int, String)] = [
         (2, "Mon"), (3, "Tue"), (4, "Wed"), (5, "Thu"),
@@ -60,7 +61,10 @@ struct SettingsView: View {
                     }
 
                     LabeledContent("Preview") {
-                        Button { state.togglePreviewDim() } label: {
+                        Button {
+                            if isPreviewingDim { state.stopPreviewDim() } else { state.previewDim() }
+                            isPreviewingDim.toggle()
+                        } label: {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 6)
                                     .fill(LinearGradient(
@@ -82,7 +86,7 @@ struct SettingsView: View {
                                 RoundedRectangle(cornerRadius: 6)
                                     .fill(Color.black.opacity(state.dimOpacity))
                                     .animation(.easeInOut(duration: 0.15), value: state.dimOpacity)
-                                Text(state.previewDimActive ? "Click to hide" : "Click to preview")
+                                Text(isPreviewingDim ? "Click to hide" : "Click to preview")
                                     .font(.caption)
                                     .foregroundStyle(.white.opacity(0.7))
                             }
@@ -90,7 +94,7 @@ struct SettingsView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 6))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 6)
-                                    .stroke(state.previewDimActive ? Color.accentColor : Color.primary.opacity(0.15), lineWidth: state.previewDimActive ? 2 : 0.5)
+                                    .stroke(isPreviewingDim ? Color.accentColor : Color.primary.opacity(0.15), lineWidth: isPreviewingDim ? 2 : 0.5)
                             )
                         }
                         .buttonStyle(.plain)
