@@ -6,7 +6,7 @@ final class DimOverlayController {
     var isVisible: Bool { !windows.isEmpty }
 
     func show(opacity: Double) {
-        guard windows.isEmpty else {
+        if !windows.isEmpty {
             windows.forEach { $0.backgroundColor = NSColor.black.withAlphaComponent(opacity) }
             return
         }
