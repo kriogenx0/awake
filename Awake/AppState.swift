@@ -71,6 +71,13 @@ class AppState: ObservableObject {
             if dimOverlay.isVisible { dimOverlay.show(opacity: dimOpacity) }
         }
     }
+    @Published private(set) var previewDimActive = false
+    @Published var preventScreenLock: Bool {
+        didSet {
+            UserDefaults.standard.set(preventScreenLock, forKey: "preventScreenLock")
+            if preventScreenLock { enableScreenLockPrevention() } else { disableScreenLockPrevention() }
+        }
+    }
     @Published var launchAtLogin: Bool {
         didSet {
             do {
@@ -105,6 +112,7 @@ class AppState: ObservableObject {
         displayDimDelay       = DisplayDimDelay(rawValue: d.object(forKey: "displayDimDelay") as? Int ?? 0) ?? .never
         displayInactiveAction = DisplayInactiveAction(rawValue: d.object(forKey: "displayInactiveAction") as? Int ?? 0) ?? .dim
         dimOpacity            = d.object(forKey: "dimOpacity")       as? Double ?? defaultDimOpacity
+        preventScreenLock     = d.object(forKey: "preventScreenLock") as? Bool ?? false
 
         let service = SMAppService.mainApp
         if service.status == .notRegistered { try? service.register() }
@@ -135,10 +143,12 @@ class AppState: ObservableObject {
     }
 
     func previewDim() {
+        previewDimActive = true
         dimOverlay.show(opacity: dimOpacity)
     }
 
     func stopPreviewDim() {
+        previewDimActive = false
         guard !(caffeineActive && displayDidTrigger && displayInactiveAction == .dim) else { return }
         dimOverlay.hide()
     }
@@ -181,7 +191,7 @@ class AppState: ObservableObject {
     private func updateDisplayAssertion() {
         dimCheckTimer?.invalidate()
         dimCheckTimer = nil
-        dimOverlay.hide()
+        if !previewDimActive { dimOverlay.hide() }
         guard caffeineActive else { return }
         displayDidTrigger = false
 
@@ -213,7 +223,7 @@ class AppState: ObservableObject {
             }
         } else {
             displayDidTrigger = false
-            dimOverlay.hide()
+            if !previewDimActive { dimOverlay.hide() }
             holdDisplayAssertion()
         }
     }
