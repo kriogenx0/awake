@@ -1,8 +1,10 @@
 import SwiftUI
+import AppKit
 
 struct SettingsView: View {
     @EnvironmentObject var state: AppState
     @State private var isPreviewingDim = false
+    @State private var clickMonitor: Any?
 
     private let orderedDays: [(Int, String)] = [
         (2, "Mon"), (3, "Tue"), (4, "Wed"), (5, "Thu"),
@@ -26,25 +28,22 @@ struct SettingsView: View {
                 }
                 .padding(.vertical, 4)
             }
+
             Section("General") {
                 Toggle("Launch at login", isOn: $state.launchAtLogin)
                 Toggle("Move mouse to stay awake", isOn: $state.jiggleMouse)
             }
 
             Section("Display") {
-                LabeledContent("When Inactive") {
-                    HStack(spacing: 6) {
-                        Text("For...")
-                            .foregroundStyle(.secondary)
-                        Picker("duration", selection: $state.displayDimDelay) {
-                            ForEach(DisplayDimDelay.allCases, id: \.rawValue) {
-                                Text($0.label).tag($0)
-                            }
+                LabeledContent("Dim Display After") {
+                    Picker("duration", selection: $state.displayDimDelay) {
+                        ForEach(DisplayDimDelay.allCases, id: \.rawValue) {
+                            Text($0.label).tag($0)
                         }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
-                        .frame(width: 120)
                     }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(width: 120)
                 }
 
                 if state.displayDimDelay != .never {
@@ -59,47 +58,18 @@ struct SettingsView: View {
                     }
 
                     LabeledContent("Preview") {
-                        Button {
-                            if isPreviewingDim { state.stopPreviewDim() } else { state.previewDim() }
-                            isPreviewingDim.toggle()
-                        } label: {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(LinearGradient(
-                                        colors: [Color(red: 0.25, green: 0.45, blue: 0.72),
-                                                 Color(red: 0.12, green: 0.22, blue: 0.48)],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    ))
-                                VStack(spacing: 0) {
-                                    Rectangle()
-                                        .fill(Color.white.opacity(0.18))
-                                        .frame(height: 9)
-                                    Spacer()
-                                    RoundedRectangle(cornerRadius: 4)
-                                        .fill(Color.white.opacity(0.12))
-                                        .frame(width: 80, height: 10)
-                                        .padding(.bottom, 4)
-                                }
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(Color.black.opacity(state.dimOpacity))
-                                    .animation(.easeInOut(duration: 0.15), value: state.dimOpacity)
-                                Text(isPreviewingDim ? "Click to hide" : "Click to preview")
-                                    .font(.caption)
-                                    .foregroundStyle(.white.opacity(0.7))
+                        Button(isPreviewingDim ? "Stop Preview" : "Preview Dim") {
+                            if isPreviewingDim {
+                                stopPreview()
+                            } else {
+                                startPreview()
                             }
-                            .frame(width: 213, height: 120)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .stroke(isPreviewingDim ? Color.accentColor : Color.primary.opacity(0.15), lineWidth: isPreviewingDim ? 2 : 0.5)
-                            )
                         }
                     }
                 }
             }
 
-            Section("Schedule — Days") {
+            Section("Schedule") {
                 HStack(spacing: 4) {
                     ForEach(orderedDays, id: \.0) { weekday, name in
                         Toggle(name, isOn: Binding(
@@ -110,9 +80,7 @@ struct SettingsView: View {
                     }
                 }
                 .padding(.vertical, 2)
-            }
 
-            Section("Schedule — Hours") {
                 LabeledContent("From") {
                     Picker("From", selection: $state.startHour) {
                         ForEach(0..<24, id: \.self) { Text(hourLabel($0)).tag($0) }
@@ -139,12 +107,26 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(minWidth: 420, minHeight: 780)
+        .frame(minWidth: 420, minHeight: 680)
         .onDisappear {
-            if isPreviewingDim {
-                state.stopPreviewDim()
-                isPreviewingDim = false
-            }
+            if isPreviewingDim { stopPreview() }
+        }
+    }
+
+    private func startPreview() {
+        state.previewDim()
+        isPreviewingDim = true
+        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [self] _ in
+            stopPreview()
+        }
+    }
+
+    private func stopPreview() {
+        state.stopPreviewDim()
+        isPreviewingDim = false
+        if let m = clickMonitor {
+            NSEvent.removeMonitor(m)
+            clickMonitor = nil
         }
     }
 

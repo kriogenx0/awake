@@ -14,34 +14,13 @@ struct AppMenu: View {
             set: { _ in state.toggleManual() }
         ))
 
-        Menu("Dim The Display After") {
+        Menu("Dim Display After") {
             ForEach(DisplayDimDelay.allCases, id: \.rawValue) { option in
                 Toggle(option.label, isOn: Binding(
                     get: { state.displayDimDelay == option },
                     set: { _ in state.displayDimDelay = option }
                 ))
             }
-
-            if state.displayDimDelay != .never {
-                Divider()
-                Text("Then...")
-
-                ForEach(DisplayInactiveAction.allCases, id: \.rawValue) { option in
-                    Toggle(option.label, isOn: Binding(
-                        get: { state.displayInactiveAction == option },
-                        set: { _ in state.displayInactiveAction = option }
-                    ))
-                }
-            }
-            Divider()
-            Text("...Then")
-            Button {} label: {
-                HStack {
-                    Text("Dim display")
-                    Image(systemName: "checkmark")
-                }
-            }
-            .disabled(true)
         }
 
         Divider()
