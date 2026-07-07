@@ -6,36 +6,43 @@ final class DimOverlayController {
     var isVisible: Bool { !windows.isEmpty }
 
     func show(opacity: Double) {
-        hide()
         guard windows.isEmpty else {
             windows.forEach { $0.backgroundColor = NSColor.black.withAlphaComponent(opacity) }
             return
         }
-
-        for screen in NSScreen.screens {
-            let win = NSWindow(
+        windows = NSScreen.screens.map { screen in
+            let window = NSWindow(
                 contentRect: screen.frame,
                 styleMask: .borderless,
                 backing: .buffered,
                 defer: false,
                 screen: screen
             )
-            // window.level = .screenSaver
-            window.level = NSWindow.Level(rawValue: Int(CGWindowLevelKey.maximumWindow.rawValue))
+            window.level = .screenSaver
             window.isOpaque = false
             window.hasShadow = false
             window.ignoresMouseEvents = true
             window.isReleasedWhenClosed = false
-            window.backgroundColor = NSColor.black.withAlphaComponent(opacity)
             window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
+            window.backgroundColor = NSColor.black.withAlphaComponent(opacity)
+            window.alphaValue = 0
             window.orderFrontRegardless()
-            windows.append(win)
             return window
+        }
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.1
+            windows.forEach { $0.animator().alphaValue = 1 }
         }
     }
 
     func hide() {
-        windows.forEach { $0.orderOut(nil) }
+        let closing = windows
         windows.removeAll()
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = 0.1
+            closing.forEach { $0.animator().alphaValue = 0 }
+        }, completionHandler: {
+            closing.forEach { $0.orderOut(nil) }
+        })
     }
 }
