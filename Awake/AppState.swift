@@ -104,9 +104,11 @@ class AppState: ObservableObject {
     private var scheduleTimer: Timer?
     private var dimCheckTimer: Timer?
     private var blackTimer: Timer?
+    private var wakeCheckTimer: Timer?
     private var jiggleTimer: Timer?
     private var displayDidTrigger = false
     private var wakeMonitor: Any?
+    private var lastMousePosition: CGPoint = .zero
     private let dimOverlay = DimOverlayController()
 
     init() {
@@ -232,9 +234,19 @@ class AppState: ObservableObject {
                     RunLoop.main.add(t, forMode: .common)
                     blackTimer = t
                 }
-                wakeMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDown, .rightMouseDown, .keyDown, .scrollWheel]) { [weak self] _ in
+                wakeMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown, .scrollWheel]) { [weak self] _ in
                     self?.wakeFromDim()
                 }
+                lastMousePosition = NSEvent.mouseLocation
+                let wt = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+                    guard let self else { return }
+                    let pos = NSEvent.mouseLocation
+                    if abs(pos.x - self.lastMousePosition.x) > 2 || abs(pos.y - self.lastMousePosition.y) > 2 {
+                        self.wakeFromDim()
+                    }
+                }
+                RunLoop.main.add(wt, forMode: .common)
+                wakeCheckTimer = wt
             }
         } else {
             displayDidTrigger = false
@@ -254,6 +266,7 @@ class AppState: ObservableObject {
 
     private func removeWakeMonitor() {
         if let m = wakeMonitor { NSEvent.removeMonitor(m); wakeMonitor = nil }
+        wakeCheckTimer?.invalidate(); wakeCheckTimer = nil
     }
 
     private func holdDisplayAssertion() {
@@ -328,6 +341,7 @@ class AppState: ObservableObject {
         scheduleTimer?.invalidate()
         dimCheckTimer?.invalidate()
         blackTimer?.invalidate()
+        wakeCheckTimer?.invalidate()
         jiggleTimer?.invalidate()
         removeWakeMonitor()
         dimOverlay.hide()
