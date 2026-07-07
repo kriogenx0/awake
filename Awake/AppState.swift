@@ -6,6 +6,7 @@ import CoreGraphics
 
 enum DisplayDimDelay: Int, CaseIterable {
     case never = 0
+    case oneMinute = 1
     case fiveMinutes = 5
     case tenMinutes = 10
     case twentyMinutes = 20
@@ -15,6 +16,7 @@ enum DisplayDimDelay: Int, CaseIterable {
     var label: String {
         switch self {
         case .never:          return "Never"
+        case .oneMinute:      return "1 minute"
         case .fiveMinutes:    return "5 minutes"
         case .tenMinutes:     return "10 minutes"
         case .twentyMinutes:  return "20 minutes"
@@ -24,18 +26,6 @@ enum DisplayDimDelay: Int, CaseIterable {
     }
 
     var seconds: TimeInterval { TimeInterval(rawValue) * 60 }
-}
-
-enum DisplayInactiveAction: Int, CaseIterable {
-    case dim = 0
-    case turnOff = 1
-
-    var label: String {
-        switch self {
-        case .dim:     return "Dim the display"
-        case .turnOff: return "Turn off the display"
-        }
-    }
 }
 
 let defaultDimOpacity: Double = 0.8
@@ -56,12 +46,6 @@ class AppState: ObservableObject {
     @Published var displayDimDelay: DisplayDimDelay {
         didSet {
             UserDefaults.standard.set(displayDimDelay.rawValue, forKey: "displayDimDelay")
-            updateDisplayAssertion()
-        }
-    }
-    @Published var displayInactiveAction: DisplayInactiveAction {
-        didSet {
-            UserDefaults.standard.set(displayInactiveAction.rawValue, forKey: "displayInactiveAction")
             updateDisplayAssertion()
         }
     }
@@ -104,7 +88,6 @@ class AppState: ObservableObject {
         endHour               = d.object(forKey: "endHour")          as? Int  ?? 18
         activeDays            = Set(d.array(forKey: "activeDays")    as? [Int] ?? [2, 3, 4, 5, 6])
         displayDimDelay       = DisplayDimDelay(rawValue: d.object(forKey: "displayDimDelay") as? Int ?? 0) ?? .never
-        displayInactiveAction = DisplayInactiveAction(rawValue: d.object(forKey: "displayInactiveAction") as? Int ?? 0) ?? .dim
         dimOpacity            = d.object(forKey: "dimOpacity")       as? Double ?? defaultDimOpacity
 
         let service = SMAppService.mainApp
@@ -142,7 +125,7 @@ class AppState: ObservableObject {
 
     func stopPreviewDim() {
         previewDimActive = false
-        guard !(caffeineActive && displayDidTrigger && displayInactiveAction == .dim) else { return }
+        guard !(caffeineActive && displayDidTrigger) else { return }
         dimOverlay.hide()
     }
 
@@ -209,23 +192,12 @@ class AppState: ObservableObject {
             if !displayDidTrigger {
                 displayDidTrigger = true
                 releaseDisplayAssertion()
-                switch displayInactiveAction {
-                case .dim:     dimOverlay.show(opacity: dimOpacity)
-                case .turnOff: sleepDisplay()
-                }
+                dimOverlay.show(opacity: dimOpacity)
             }
         } else {
             displayDidTrigger = false
             if !previewDimActive { dimOverlay.hide() }
             holdDisplayAssertion()
-        }
-    }
-
-    private func sleepDisplay() {
-        let r = IORegistryEntryFromPath(kIOMainPortDefault, "IOService:/IOResources/IODisplayWrangler")
-        if r != MACH_PORT_NULL {
-            IORegistryEntrySetCFProperty(r, "IORequestIdle" as CFString, true as CFTypeRef)
-            IOObjectRelease(r)
         }
     }
 
