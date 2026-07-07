@@ -32,8 +32,6 @@ struct SettingsView: View {
             }
 
             Section("Display") {
-                Toggle("Allow display sleep without lock", isOn: $state.preventScreenLock)
-
                 LabeledContent("When Inactive") {
                     HStack(spacing: 6) {
                         Text("For...")

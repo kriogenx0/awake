@@ -72,12 +72,6 @@ class AppState: ObservableObject {
         }
     }
     @Published private(set) var previewDimActive = false
-    @Published var preventScreenLock: Bool {
-        didSet {
-            UserDefaults.standard.set(preventScreenLock, forKey: "preventScreenLock")
-            if preventScreenLock { enableScreenLockPrevention() } else { disableScreenLockPrevention() }
-        }
-    }
     @Published var launchAtLogin: Bool {
         didSet {
             do {
@@ -112,7 +106,6 @@ class AppState: ObservableObject {
         displayDimDelay       = DisplayDimDelay(rawValue: d.object(forKey: "displayDimDelay") as? Int ?? 0) ?? .never
         displayInactiveAction = DisplayInactiveAction(rawValue: d.object(forKey: "displayInactiveAction") as? Int ?? 0) ?? .dim
         dimOpacity            = d.object(forKey: "dimOpacity")       as? Double ?? defaultDimOpacity
-        preventScreenLock     = d.object(forKey: "preventScreenLock") as? Bool ?? false
 
         let service = SMAppService.mainApp
         if service.status == .notRegistered { try? service.register() }
@@ -121,7 +114,6 @@ class AppState: ObservableObject {
         jiggleMouse = d.object(forKey: "jiggleMouse") as? Bool ?? false
         setupScheduleTimer()
         if jiggleMouse { startJiggleTimer() }
-        if preventScreenLock { enableScreenLockPrevention() }
         updateSchedule()
     }
 
@@ -276,36 +268,6 @@ class AppState: ObservableObject {
         let weekday = cal.component(.weekday, from: now)
         let hour    = cal.component(.hour, from: now)
         return activeDays.contains(weekday) && (startHour..<endHour).contains(hour)
-    }
-
-    // MARK: - Screen lock prevention
-
-    private func enableScreenLockPrevention() {
-        applyScreenLockPref(0)
-    }
-
-    private func disableScreenLockPrevention() {
-        applyScreenLockPref(1)
-    }
-
-    private func applyScreenLockPref(_ value: Int) {
-        let domain = "com.apple.screensaver" as CFString
-        let key = "askForPassword" as CFString
-        let num = NSNumber(value: value)
-
-        CFPreferencesSetValue(key, num, domain, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
-        CFPreferencesSynchronize(domain, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
-        CFPreferencesSetValue(key, num, domain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
-        CFPreferencesSynchronize(domain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
-
-        DistributedNotificationCenter.default().post(
-            name: NSNotification.Name("com.apple.screensaver.configurationChanged"),
-            object: nil
-        )
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
-        proc.arguments = ["ScreenSaverAgent"]
-        try? proc.run()
     }
 
     // MARK: - Mouse jiggle
