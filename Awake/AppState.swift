@@ -28,6 +28,26 @@ enum DisplayDimDelay: Int, CaseIterable {
     var seconds: TimeInterval { TimeInterval(rawValue) * 60 }
 }
 
+enum DisplayBlackDelay: Int, CaseIterable {
+    case never = 0
+    case oneMinute = 1
+    case fiveMinutes = 5
+    case tenMinutes = 10
+    case thirtyMinutes = 30
+
+    var label: String {
+        switch self {
+        case .never:          return "Never"
+        case .oneMinute:      return "1 minute later"
+        case .fiveMinutes:    return "5 minutes later"
+        case .tenMinutes:     return "10 minutes later"
+        case .thirtyMinutes:  return "30 minutes later"
+        }
+    }
+
+    var seconds: TimeInterval { TimeInterval(rawValue) * 60 }
+}
+
 let defaultDimOpacity: Double = 0.8
 
 class AppState: ObservableObject {
@@ -46,6 +66,12 @@ class AppState: ObservableObject {
     @Published var displayDimDelay: DisplayDimDelay {
         didSet {
             UserDefaults.standard.set(displayDimDelay.rawValue, forKey: "displayDimDelay")
+            updateDisplayAssertion()
+        }
+    }
+    @Published var displayBlackDelay: DisplayBlackDelay {
+        didSet {
+            UserDefaults.standard.set(displayBlackDelay.rawValue, forKey: "displayBlackDelay")
             updateDisplayAssertion()
         }
     }
@@ -77,8 +103,10 @@ class AppState: ObservableObject {
     private var displayAssertionID: IOPMAssertionID = 0
     private var scheduleTimer: Timer?
     private var dimCheckTimer: Timer?
+    private var blackTimer: Timer?
     private var jiggleTimer: Timer?
     private var displayDidTrigger = false
+    private var wakeMonitor: Any?
     private let dimOverlay = DimOverlayController()
 
     init() {
@@ -88,6 +116,7 @@ class AppState: ObservableObject {
         endHour               = d.object(forKey: "endHour")          as? Int  ?? 18
         activeDays            = Set(d.array(forKey: "activeDays")    as? [Int] ?? [2, 3, 4, 5, 6])
         displayDimDelay       = DisplayDimDelay(rawValue: d.object(forKey: "displayDimDelay") as? Int ?? 0) ?? .never
+        displayBlackDelay     = DisplayBlackDelay(rawValue: d.object(forKey: "displayBlackDelay") as? Int ?? 0) ?? .never
         dimOpacity            = d.object(forKey: "dimOpacity")       as? Double ?? defaultDimOpacity
 
         let service = SMAppService.mainApp
@@ -158,6 +187,8 @@ class AppState: ObservableObject {
         releaseDisplayAssertion()
         dimCheckTimer?.invalidate()
         dimCheckTimer = nil
+        blackTimer?.invalidate(); blackTimer = nil
+        removeWakeMonitor()
         dimOverlay.hide()
         caffeineActive = false
     }
@@ -167,6 +198,7 @@ class AppState: ObservableObject {
     private func updateDisplayAssertion() {
         dimCheckTimer?.invalidate()
         dimCheckTimer = nil
+        blackTimer?.invalidate(); blackTimer = nil
         if !previewDimActive { dimOverlay.hide() }
         guard caffeineActive else { return }
         displayDidTrigger = false
@@ -193,12 +225,36 @@ class AppState: ObservableObject {
                 displayDidTrigger = true
                 releaseDisplayAssertion()
                 dimOverlay.show(opacity: dimOpacity)
+                if displayBlackDelay != .never {
+                    let t = Timer.scheduledTimer(withTimeInterval: displayBlackDelay.seconds, repeats: false) { [weak self] _ in
+                        guard let self, self.displayDidTrigger else { return }
+                        self.dimOverlay.show(opacity: 1.0)
+                    }
+                    RunLoop.main.add(t, forMode: .common)
+                    blackTimer = t
+                }
+                wakeMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDown, .rightMouseDown, .keyDown, .scrollWheel]) { [weak self] _ in
+                    self?.wakeFromDim()
+                }
             }
         } else {
             displayDidTrigger = false
+            removeWakeMonitor()
             if !previewDimActive { dimOverlay.hide() }
             holdDisplayAssertion()
         }
+    }
+
+    private func wakeFromDim() {
+        removeWakeMonitor()
+        blackTimer?.invalidate(); blackTimer = nil
+        displayDidTrigger = false
+        if !previewDimActive { dimOverlay.hide() }
+        holdDisplayAssertion()
+    }
+
+    private func removeWakeMonitor() {
+        if let m = wakeMonitor { NSEvent.removeMonitor(m); wakeMonitor = nil }
     }
 
     private func holdDisplayAssertion() {
@@ -272,7 +328,9 @@ class AppState: ObservableObject {
     deinit {
         scheduleTimer?.invalidate()
         dimCheckTimer?.invalidate()
+        blackTimer?.invalidate()
         jiggleTimer?.invalidate()
+        removeWakeMonitor()
         dimOverlay.hide()
         if systemAssertionID != 0 { IOPMAssertionRelease(systemAssertionID) }
         releaseDisplayAssertion()

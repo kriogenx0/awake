@@ -5,6 +5,7 @@ struct SettingsView: View {
     @EnvironmentObject var state: AppState
     @State private var isPreviewingDim = false
     @State private var clickMonitor: Any?
+    @State private var localClickMonitor: Any?
 
     private let orderedDays: [(Int, String)] = [
         (2, "Mon"), (3, "Tue"), (4, "Wed"), (5, "Thu"),
@@ -47,6 +48,17 @@ struct SettingsView: View {
                 }
 
                 if state.displayDimDelay != .never {
+                    LabeledContent("Black Display After") {
+                        Picker("black", selection: $state.displayBlackDelay) {
+                            ForEach(DisplayBlackDelay.allCases, id: \.rawValue) {
+                                Text($0.label).tag($0)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(width: 150)
+                    }
+
                     LabeledContent("Overlay Darkness") {
                         HStack {
                             Slider(value: $state.dimOpacity, in: 0.1...0.95)
@@ -116,18 +128,20 @@ struct SettingsView: View {
     private func startPreview() {
         state.previewDim()
         isPreviewingDim = true
-        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [self] _ in
+        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .mouseMoved]) { [self] _ in
             stopPreview()
+        }
+        localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .mouseMoved]) { [self] event in
+            stopPreview()
+            return event
         }
     }
 
     private func stopPreview() {
         state.stopPreviewDim()
         isPreviewingDim = false
-        if let m = clickMonitor {
-            NSEvent.removeMonitor(m)
-            clickMonitor = nil
-        }
+        if let m = clickMonitor { NSEvent.removeMonitor(m); clickMonitor = nil }
+        if let m = localClickMonitor { NSEvent.removeMonitor(m); localClickMonitor = nil }
     }
 
     private func hourLabel(_ hour: Int) -> String {

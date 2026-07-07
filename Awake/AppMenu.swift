@@ -23,6 +23,17 @@ struct AppMenu: View {
             }
         }
 
+        if state.displayDimDelay != .never {
+            Menu("Black Display After") {
+                ForEach(DisplayBlackDelay.allCases, id: \.rawValue) { option in
+                    Toggle(option.label, isOn: Binding(
+                        get: { state.displayBlackDelay == option },
+                        set: { _ in state.displayBlackDelay = option }
+                    ))
+                }
+            }
+        }
+
         Divider()
 
         Toggle("Stay Awake on Schedule", isOn: Binding(
