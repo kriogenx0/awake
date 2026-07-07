@@ -42,8 +42,12 @@ class AppState: ObservableObject {
         }
     }
     @Published var dimOpacity: Double {
-        didSet { UserDefaults.standard.set(dimOpacity, forKey: "dimOpacity") }
+        didSet {
+            UserDefaults.standard.set(dimOpacity, forKey: "dimOpacity")
+            if previewDimActive { overlay.show(opacity: dimOpacity) }
+        }
     }
+    @Published private(set) var previewDimActive = false
     @Published var preventScreenLock: Bool {
         didSet {
             UserDefaults.standard.set(preventScreenLock, forKey: "preventScreenLock")
@@ -82,7 +86,7 @@ class AppState: ObservableObject {
         endHour          = d.object(forKey: "endHour")          as? Int  ?? 18
         activeDays       = Set(d.array(forKey: "activeDays")    as? [Int] ?? [2, 3, 4, 5, 6])
         displayDimDelay  = DisplayDimDelay(rawValue: d.object(forKey: "displayDimDelay") as? Int ?? 0) ?? .never
-        dimOpacity       = d.object(forKey: "dimOpacity")       as? Double ?? 0.5
+        dimOpacity       = d.object(forKey: "dimOpacity")       as? Double ?? 0.8
         preventScreenLock = d.object(forKey: "preventScreenLock") as? Bool ?? false
 
         let service = SMAppService.mainApp
@@ -119,6 +123,11 @@ class AppState: ObservableObject {
         return scheduleEnabled ? "\(base) · Scheduled" : base
     }
 
+    func togglePreviewDim() {
+        previewDimActive.toggle()
+        if previewDimActive { overlay.show(opacity: dimOpacity) } else { overlay.hide() }
+    }
+
     // MARK: - System sleep
 
     private func enableCaffeine() {
@@ -144,6 +153,7 @@ class AppState: ObservableObject {
         dimCheckTimer?.invalidate()
         dimCheckTimer = nil
         overlay.hide()
+        previewDimActive = false
         caffeineActive = false
     }
 
