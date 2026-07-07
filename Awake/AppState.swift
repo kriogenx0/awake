@@ -223,7 +223,6 @@ class AppState: ObservableObject {
         if idle >= displayDimDelay.seconds {
             if !displayDidTrigger {
                 displayDidTrigger = true
-                releaseDisplayAssertion()
                 dimOverlay.show(opacity: dimOpacity)
                 if displayBlackDelay != .never {
                     let t = Timer.scheduledTimer(withTimeInterval: displayBlackDelay.seconds, repeats: false) { [weak self] _ in
