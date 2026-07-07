@@ -15,20 +15,28 @@ struct AppMenu: View {
         ))
 
         Menu("When Inactive") {
-            Menu("For...") {
-                ForEach(DisplayDimDelay.allCases, id: \.rawValue) { delay in
-                    Button {
-                        state.displayDimDelay = delay
-                    } label: {
-                        HStack {
-                            Text(delay.label)
-                            if state.displayDimDelay == delay {
-                                Image(systemName: "checkmark")
-                            }
+            Text("For...")
+            ForEach(DisplayDimDelay.allCases, id: \.rawValue) { delay in
+                Button {
+                    state.displayDimDelay = delay
+                } label: {
+                    HStack {
+                        Text(delay.label)
+                        if state.displayDimDelay == delay {
+                            Image(systemName: "checkmark")
                         }
                     }
                 }
             }
+            Divider()
+            Text("...Then")
+            Button {} label: {
+                HStack {
+                    Text("Dim display")
+                    Image(systemName: "checkmark")
+                }
+            }
+            .disabled(true)
         }
 
         Divider()
