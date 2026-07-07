@@ -72,12 +72,6 @@ class AppState: ObservableObject {
         }
     }
     @Published private(set) var previewDimActive = false
-    @Published var preventScreenLock: Bool {
-        didSet {
-            UserDefaults.standard.set(preventScreenLock, forKey: "preventScreenLock")
-            if preventScreenLock { enableScreenLockPrevention() } else { disableScreenLockPrevention() }
-        }
-    }
     @Published var launchAtLogin: Bool {
         didSet {
             do {
@@ -112,7 +106,6 @@ class AppState: ObservableObject {
         displayDimDelay       = DisplayDimDelay(rawValue: d.object(forKey: "displayDimDelay") as? Int ?? 0) ?? .never
         displayInactiveAction = DisplayInactiveAction(rawValue: d.object(forKey: "displayInactiveAction") as? Int ?? 0) ?? .dim
         dimOpacity            = d.object(forKey: "dimOpacity")       as? Double ?? defaultDimOpacity
-        preventScreenLock     = d.object(forKey: "preventScreenLock") as? Bool ?? false
 
         let service = SMAppService.mainApp
         if service.status == .notRegistered { try? service.register() }
