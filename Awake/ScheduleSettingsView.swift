@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var state: AppState
+    @State private var isPreviewingDim = false
 
     private let orderedDays: [(Int, String)] = [
         (2, "Mon"), (3, "Tue"), (4, "Wed"), (5, "Thu"),
@@ -56,6 +57,26 @@ struct SettingsView: View {
                         .frame(width: 160)
                     }
                 }
+
+                if state.displayInactiveAction == .dim {
+                    LabeledContent("Dim amount") {
+                        Slider(value: $state.dimOpacity, in: 0.1...1.0)
+                            .frame(width: 160)
+                    }
+
+                    LabeledContent("Preview") {
+                        Button {
+                            if isPreviewingDim {
+                                state.stopPreviewDim()
+                            } else {
+                                state.previewDim()
+                            }
+                            isPreviewingDim.toggle()
+                        } label: {
+                            Text(isPreviewingDim ? "Stop Preview" : "Preview")
+                        }
+                    }
+                }
             }
 
             Section("Schedule — Days") {
@@ -99,6 +120,12 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(minWidth: 420, minHeight: 780)
+        .onDisappear {
+            if isPreviewingDim {
+                state.stopPreviewDim()
+                isPreviewingDim = false
+            }
+        }
     }
 
     private func hourLabel(_ hour: Int) -> String {
