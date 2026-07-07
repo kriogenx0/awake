@@ -33,6 +33,15 @@ struct AppMenu: View {
                     ))
                 }
             }
+            Divider()
+            Text("...Then")
+            Button {} label: {
+                HStack {
+                    Text("Dim display")
+                    Image(systemName: "checkmark")
+                }
+            }
+            .disabled(true)
         }
 
         Divider()
