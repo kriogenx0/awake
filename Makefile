@@ -1,6 +1,6 @@
 APP_NAME    := Awake
 BUNDLE_ID   := com.awake.app
-VERSION     := 1.2
+VERSION     := 1.1.1
 BUILD_DIR   := build
 APP_BUNDLE  := $(BUILD_DIR)/$(APP_NAME).app
 INSTALL_DIR := /Applications

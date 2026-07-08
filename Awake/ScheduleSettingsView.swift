@@ -32,10 +32,10 @@ struct SettingsView: View {
 
             Section("General") {
                 Toggle("Launch at login", isOn: $state.launchAtLogin)
-                Toggle("Move mouse to stay awake", isOn: $state.jiggleMouse)
+                Toggle("Periodically move cursor to stay awake", isOn: $state.jiggleMouse)
             }
 
-            Section("Display") {
+            Section("Dim Display") {
                 LabeledContent("Dim Display After") {
                     Picker("duration", selection: $state.displayDimDelay) {
                         ForEach(DisplayDimDelay.allCases, id: \.rawValue) {
