@@ -307,7 +307,11 @@ class AppState: ObservableObject {
         let now = Date()
         let weekday = cal.component(.weekday, from: now)
         let hour    = cal.component(.hour, from: now)
-        return activeDays.contains(weekday) && (startHour..<endHour).contains(hour)
+        return Self.isWithinSchedule(weekday: weekday, hour: hour, activeDays: activeDays, startHour: startHour, endHour: endHour)
+    }
+
+    static func isWithinSchedule(weekday: Int, hour: Int, activeDays: Set<Int>, startHour: Int, endHour: Int) -> Bool {
+        activeDays.contains(weekday) && (startHour..<endHour).contains(hour)
     }
 
     // MARK: - Mouse jiggle

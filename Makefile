@@ -13,10 +13,13 @@ SWIFTC      := $(shell xcrun --find swiftc)
 SOURCES     := Awake/AwakeApp.swift Awake/AppState.swift Awake/AppMenu.swift Awake/ScheduleSettingsView.swift Awake/DimOverlay.swift
 FRAMEWORKS  := -framework SwiftUI -framework AppKit -framework IOKit -framework ServiceManagement
 
-.PHONY: all dev build open close clean install uninstall reinstall \
+.PHONY: all dev build test open close clean install uninstall reinstall \
         _bundle_dev _bundle_release _scaffold
 
 all: dev
+
+test:
+	swift test --disable-sandbox
 
 dev: close clean _bundle_dev
 	open "$(APP_BUNDLE)"
