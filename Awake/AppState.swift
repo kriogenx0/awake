@@ -48,10 +48,34 @@ enum DisplayBlackDelay: Int, CaseIterable {
     var seconds: TimeInterval { TimeInterval(rawValue) * 60 }
 }
 
+enum StayAwakeDuration: Int, CaseIterable {
+    case fifteenMinutes = 15
+    case thirtyMinutes = 30
+    case oneHour = 60
+    case twoHours = 120
+    case fourHours = 240
+    case eightHours = 480
+
+    var label: String {
+        switch self {
+        case .fifteenMinutes: return "15 Minutes"
+        case .thirtyMinutes:  return "30 Minutes"
+        case .oneHour:        return "1 Hour"
+        case .twoHours:       return "2 Hours"
+        case .fourHours:      return "4 Hours"
+        case .eightHours:     return "8 Hours"
+        }
+    }
+
+    var seconds: TimeInterval { TimeInterval(rawValue) * 60 }
+}
+
 let defaultDimOpacity: Double = 0.8
 
 class AppState: ObservableObject {
     @Published private(set) var caffeineActive = false
+    @Published private(set) var activeDuration: StayAwakeDuration?
+    @Published private(set) var awakeRemainingText: String?
     @Published private(set) var scheduleEnabled: Bool
 
     @Published var startHour: Int {
@@ -106,6 +130,9 @@ class AppState: ObservableObject {
     private var blackTimer: Timer?
     private var wakeCheckTimer: Timer?
     private var jiggleTimer: Timer?
+    private var awakeDurationTimer: Timer?
+    private var countdownTimer: Timer?
+    private var awakeUntil: Date?
     private var displayDidTrigger = false
     private var wakeMonitor: Any?
     private var lastMousePosition: CGPoint = .zero
@@ -133,8 +160,28 @@ class AppState: ObservableObject {
 
     // MARK: - Public
 
-    func toggleManual() {
-        if caffeineActive { disableCaffeine() } else { enableCaffeine() }
+    func enableCaffeineIndefinitely() {
+        clearAwakeDuration()
+        enableCaffeine()
+    }
+
+    func enableCaffeine(for duration: StayAwakeDuration) {
+        clearAwakeDuration()
+        enableCaffeine()
+        guard caffeineActive else { return }
+        activeDuration = duration
+        let end = Date().addingTimeInterval(duration.seconds)
+        awakeUntil = end
+        let t = Timer.scheduledTimer(withTimeInterval: duration.seconds, repeats: false) { [weak self] _ in
+            self?.disableCaffeine()
+        }
+        RunLoop.main.add(t, forMode: .common)
+        awakeDurationTimer = t
+        startCountdown()
+    }
+
+    func turnOff() {
+        disableCaffeine()
     }
 
     func setScheduleEnabled(_ enabled: Bool) {
@@ -192,7 +239,32 @@ class AppState: ObservableObject {
         blackTimer?.invalidate(); blackTimer = nil
         removeWakeMonitor()
         dimOverlay.hide()
+        clearAwakeDuration()
         caffeineActive = false
+    }
+
+    private func clearAwakeDuration() {
+        awakeDurationTimer?.invalidate(); awakeDurationTimer = nil
+        countdownTimer?.invalidate(); countdownTimer = nil
+        activeDuration = nil
+        awakeUntil = nil
+        awakeRemainingText = nil
+    }
+
+    private func startCountdown() {
+        updateRemainingText()
+        let t = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            self?.updateRemainingText()
+        }
+        RunLoop.main.add(t, forMode: .common)
+        countdownTimer = t
+    }
+
+    private func updateRemainingText() {
+        guard let end = awakeUntil else { awakeRemainingText = nil; return }
+        let remaining = Int(end.timeIntervalSinceNow.rounded(.up))
+        guard remaining > 0 else { awakeRemainingText = nil; return }
+        awakeRemainingText = String(format: "%d:%02d remaining", remaining / 60, remaining % 60)
     }
 
     // MARK: - Display / overlay
@@ -217,8 +289,21 @@ class AppState: ObservableObject {
         }
     }
 
+    private static let activityEventTypes: [CGEventType] = [
+        .mouseMoved, .leftMouseDown, .rightMouseDown, .otherMouseDown,
+        .leftMouseDragged, .rightMouseDragged, .otherMouseDragged,
+        .keyDown, .flagsChanged, .scrollWheel, .tabletPointer, .tabletProximity
+    ]
+
+    private static let wakeEventMask: NSEvent.EventTypeMask = [
+        .leftMouseDown, .rightMouseDown, .otherMouseDown,
+        .leftMouseDragged, .rightMouseDragged, .otherMouseDragged,
+        .keyDown, .flagsChanged, .scrollWheel,
+        .magnify, .swipe, .rotate, .smartMagnify, .gesture
+    ]
+
     private func applyDisplayPolicy() {
-        let idle = [CGEventType.mouseMoved, .leftMouseDown, .rightMouseDown, .keyDown, .scrollWheel]
+        let idle = Self.activityEventTypes
             .map { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) }
             .min() ?? 0
 
@@ -234,7 +319,7 @@ class AppState: ObservableObject {
                     RunLoop.main.add(t, forMode: .common)
                     blackTimer = t
                 }
-                wakeMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown, .scrollWheel]) { [weak self] _ in
+                wakeMonitor = NSEvent.addGlobalMonitorForEvents(matching: Self.wakeEventMask) { [weak self] _ in
                     self?.wakeFromDim()
                 }
                 lastMousePosition = NSEvent.mouseLocation
@@ -347,6 +432,8 @@ class AppState: ObservableObject {
         blackTimer?.invalidate()
         wakeCheckTimer?.invalidate()
         jiggleTimer?.invalidate()
+        awakeDurationTimer?.invalidate()
+        countdownTimer?.invalidate()
         removeWakeMonitor()
         dimOverlay.hide()
         if systemAssertionID != 0 { IOPMAssertionRelease(systemAssertionID) }

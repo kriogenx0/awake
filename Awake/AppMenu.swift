@@ -9,10 +9,31 @@ struct AppMenu: View {
 
         Divider()
 
-        Toggle("Stay Awake", isOn: Binding(
-            get: { state.caffeineActive },
-            set: { _ in state.toggleManual() }
-        ))
+        Menu("Stay Awake") {
+            Toggle("Off", isOn: Binding(
+                get: { !state.caffeineActive },
+                set: { _ in state.turnOff() }
+            ))
+
+            Toggle("Indefinitely", isOn: Binding(
+                get: { state.caffeineActive && state.activeDuration == nil },
+                set: { _ in state.enableCaffeineIndefinitely() }
+            ))
+
+            Divider()
+
+            ForEach(StayAwakeDuration.allCases, id: \.rawValue) { duration in
+                Toggle("For \(duration.label)", isOn: Binding(
+                    get: { state.activeDuration == duration },
+                    set: { _ in state.enableCaffeine(for: duration) }
+                ))
+            }
+        }
+
+        if let remaining = state.awakeRemainingText {
+            Text(remaining)
+                .foregroundStyle(.secondary)
+        }
 
         Menu("Dim Display After") {
             ForEach(DisplayDimDelay.allCases, id: \.rawValue) { option in
