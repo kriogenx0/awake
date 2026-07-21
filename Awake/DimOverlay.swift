@@ -36,7 +36,7 @@ final class DimOverlayController {
                 styleMask: .borderless,
                 backing: .buffered,
                 defer: false,
-                screen: screen
+                screen: nil
             )
             window.level = .screenSaver
             window.isOpaque = false
