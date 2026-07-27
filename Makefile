@@ -31,6 +31,11 @@ open: close _bundle_release
 
 close:
 	-pkill -x "$(APP_NAME)"
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+		pgrep -x "$(APP_NAME)" >/dev/null || exit 0; \
+		sleep 0.2; \
+	done; \
+	pkill -9 -x "$(APP_NAME)" 2>/dev/null; true
 
 clean:
 	rm -rf "$(BUILD_DIR)"
