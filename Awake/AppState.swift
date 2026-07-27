@@ -135,7 +135,6 @@ class AppState: ObservableObject {
     private var awakeUntil: Date?
     private var displayDidTrigger = false
     private var wakeMonitor: Any?
-    private var lastMousePosition: CGPoint = .zero
     private let dimOverlay = DimOverlayController()
 
     init() {
@@ -322,11 +321,12 @@ class AppState: ObservableObject {
                 wakeMonitor = NSEvent.addGlobalMonitorForEvents(matching: Self.wakeEventMask) { [weak self] _ in
                     self?.wakeFromDim()
                 }
-                lastMousePosition = NSEvent.mouseLocation
                 let wt = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
                     guard let self else { return }
-                    let pos = NSEvent.mouseLocation
-                    if abs(pos.x - self.lastMousePosition.x) > 2 || abs(pos.y - self.lastMousePosition.y) > 2 {
+                    let idle = Self.activityEventTypes
+                        .map { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) }
+                        .min() ?? .infinity
+                    if idle < 0.25 {
                         self.wakeFromDim()
                     }
                 }
