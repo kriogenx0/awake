@@ -41,3 +41,30 @@ final class ScheduleWindowTests: XCTestCase {
         XCTAssertFalse(AppState.isWithinSchedule(weekday: 3, hour: 9, activeDays: weekdays, startHour: 9, endHour: 9))
     }
 }
+
+final class NightDimWindowTests: XCTestCase {
+    func testWrappedWindowAtStartHour() {
+        XCTAssertTrue(AppState.isWithinHourWindow(hour: 23, startHour: 23, endHour: 6))
+    }
+
+    func testWrappedWindowAfterMidnight() {
+        XCTAssertTrue(AppState.isWithinHourWindow(hour: 2, startHour: 23, endHour: 6))
+    }
+
+    func testWrappedWindowEndHourIsExclusive() {
+        XCTAssertFalse(AppState.isWithinHourWindow(hour: 6, startHour: 23, endHour: 6))
+    }
+
+    func testWrappedWindowOutsideRange() {
+        XCTAssertFalse(AppState.isWithinHourWindow(hour: 12, startHour: 23, endHour: 6))
+    }
+
+    func testNonWrappedWindowStillWorks() {
+        XCTAssertTrue(AppState.isWithinHourWindow(hour: 10, startHour: 9, endHour: 18))
+        XCTAssertFalse(AppState.isWithinHourWindow(hour: 20, startHour: 9, endHour: 18))
+    }
+
+    func testEqualStartAndEndIsAlwaysFalse() {
+        XCTAssertFalse(AppState.isWithinHourWindow(hour: 5, startHour: 9, endHour: 9))
+    }
+}

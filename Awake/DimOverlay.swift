@@ -7,29 +7,29 @@ final class DimOverlayController {
 
     var isVisible: Bool { !windows.isEmpty }
 
-    func show(opacity: Double) {
+    func show(opacity: Double, duration: TimeInterval = 0.1) {
         currentOpacity = opacity
         if !windows.isEmpty {
             windows.forEach { $0.backgroundColor = NSColor.black.withAlphaComponent(opacity) }
             return
         }
-        rebuildWindows(animated: true)
+        rebuildWindows(animated: true, duration: duration)
         observeScreenChanges()
     }
 
-    func hide() {
+    func hide(duration: TimeInterval = 0.1) {
         stopObservingScreenChanges()
         let closing = windows
         windows.removeAll()
         NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = 0.1
+            ctx.duration = duration
             closing.forEach { $0.animator().alphaValue = 0 }
         }, completionHandler: {
             closing.forEach { $0.orderOut(nil) }
         })
     }
 
-    private func rebuildWindows(animated: Bool) {
+    private func rebuildWindows(animated: Bool, duration: TimeInterval = 0.1) {
         windows = NSScreen.screens.map { screen in
             let window = NSWindow(
                 contentRect: screen.frame,
@@ -51,7 +51,7 @@ final class DimOverlayController {
         }
         guard animated else { return }
         NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.1
+            ctx.duration = duration
             windows.forEach { $0.animator().alphaValue = 1 }
         }
     }

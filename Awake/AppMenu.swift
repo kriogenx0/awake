@@ -71,6 +71,11 @@ struct AppMenu: View {
                 .foregroundStyle(.secondary)
         }
 
+        Toggle("Dim Display at Night", isOn: Binding(
+            get: { state.nightDimEnabled },
+            set: { state.nightDimEnabled = $0 }
+        ))
+
         Button("Settings…") {
             openWindow(id: "settings")
             NSApplication.shared.activate(ignoringOtherApps: true)

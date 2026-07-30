@@ -107,9 +107,25 @@ class AppState: ObservableObject {
     @Published var dimOpacity: Double {
         didSet {
             UserDefaults.standard.set(dimOpacity, forKey: "dimOpacity")
-            if dimOverlay.isVisible { dimOverlay.show(opacity: dimOpacity) }
+            if dimOverlay.isVisible { dimOverlay.show(opacity: currentOverlayOpacity()) }
         }
     }
+    @Published var nightDimEnabled: Bool {
+        didSet { UserDefaults.standard.set(nightDimEnabled, forKey: "nightDimEnabled"); updateNightDim() }
+    }
+    @Published var nightDimStartHour: Int {
+        didSet { UserDefaults.standard.set(nightDimStartHour, forKey: "nightDimStartHour"); updateNightDim() }
+    }
+    @Published var nightDimEndHour: Int {
+        didSet { UserDefaults.standard.set(nightDimEndHour, forKey: "nightDimEndHour"); updateNightDim() }
+    }
+    @Published var nightDimOpacity: Double {
+        didSet {
+            UserDefaults.standard.set(nightDimOpacity, forKey: "nightDimOpacity")
+            if nightDimActive { dimOverlay.show(opacity: currentOverlayOpacity()) }
+        }
+    }
+    @Published private(set) var nightDimActive = false
     @Published private(set) var previewDimActive = false
     @Published var launchAtLogin: Bool {
         didSet {
@@ -155,6 +171,10 @@ class AppState: ObservableObject {
         displayDimDelay       = DisplayDimDelay(rawValue: d.object(forKey: "displayDimDelay") as? Int ?? 0) ?? .never
         displayBlackDelay     = DisplayBlackDelay(rawValue: d.object(forKey: "displayBlackDelay") as? Int ?? 0) ?? .never
         dimOpacity            = d.object(forKey: "dimOpacity")       as? Double ?? defaultDimOpacity
+        nightDimEnabled       = d.object(forKey: "nightDimEnabled")  as? Bool ?? false
+        nightDimStartHour     = d.object(forKey: "nightDimStartHour") as? Int ?? 23
+        nightDimEndHour       = d.object(forKey: "nightDimEndHour")   as? Int ?? 6
+        nightDimOpacity       = min(d.object(forKey: "nightDimOpacity") as? Double ?? defaultDimOpacity, 0.8)
 
         let service = SMAppService.mainApp
         if service.status == .notRegistered { try? service.register() }
@@ -165,6 +185,7 @@ class AppState: ObservableObject {
         setupMenuTrackingObserver()
         setupWakeObservers()
         updateSchedule()
+        updateNightDim()
     }
 
     // MARK: - Public: Stay Awake
@@ -226,7 +247,7 @@ class AppState: ObservableObject {
         blackTimer?.invalidate(); blackTimer = nil
         removeWakeMonitor()
         stopJiggleTimer()
-        dimOverlay.hide()
+        hideDimOverlayUnlessNeeded()
         clearAwakeDuration()
         manualOverride = false
         caffeineActive = false
@@ -287,7 +308,7 @@ class AppState: ObservableObject {
         blackTimer?.invalidate(); blackTimer = nil
         removeWakeMonitor()
         stopJiggleTimer()
-        if !previewDimActive { dimOverlay.hide() }
+        hideDimOverlayUnlessNeeded()
     }
 
     private func reassertOnWake() {
@@ -304,7 +325,7 @@ class AppState: ObservableObject {
             blackTimer?.invalidate(); blackTimer = nil
             removeWakeMonitor()
             stopJiggleTimer()
-            dimOverlay.hide()
+            hideDimOverlayUnlessNeeded()
             clearAwakeDuration()
             manualOverride = false
             updateSchedule()
@@ -339,7 +360,7 @@ class AppState: ObservableObject {
     func stopPreviewDim() {
         previewDimActive = false
         guard !(caffeineActive && isDimmed) else { return }
-        dimOverlay.hide()
+        hideDimOverlayUnlessNeeded()
     }
 
     private func updateDisplayAssertion() {
@@ -347,7 +368,7 @@ class AppState: ObservableObject {
         dimCheckTimer = nil
         blackTimer?.invalidate(); blackTimer = nil
         removeWakeMonitor()
-        if !previewDimActive { dimOverlay.hide() }
+        hideDimOverlayUnlessNeeded()
         guard caffeineActive else { return }
         isDimmed = false
 
@@ -406,7 +427,7 @@ class AppState: ObservableObject {
         } else {
             isDimmed = false
             removeWakeMonitor()
-            if !previewDimActive { dimOverlay.hide() }
+            hideDimOverlayUnlessNeeded()
             holdDisplayAssertion()
         }
     }
@@ -415,7 +436,7 @@ class AppState: ObservableObject {
         removeWakeMonitor()
         blackTimer?.invalidate(); blackTimer = nil
         isDimmed = false
-        if !previewDimActive { dimOverlay.hide() }
+        hideDimOverlayUnlessNeeded()
         holdDisplayAssertion()
     }
 
@@ -447,6 +468,7 @@ class AppState: ObservableObject {
     private func setupScheduleTimer() {
         scheduleTimer = scheduledTimer(interval: 60, repeats: true) { [weak self] _ in
             self?.updateSchedule()
+            self?.updateNightDim()
         }
     }
 
@@ -483,6 +505,52 @@ class AppState: ObservableObject {
     static func isWithinSchedule(weekday: Int, hour: Int, activeDays: Set<Int>, startHour: Int, endHour: Int) -> Bool {
         guard startHour < endHour else { return false }
         return activeDays.contains(weekday) && (startHour..<endHour).contains(hour)
+    }
+
+    // MARK: - Night Dim
+
+    private let nightDimFadeDuration: TimeInterval = 3
+
+    func updateNightDim() {
+        guard nightDimEnabled else {
+            guard nightDimActive else { return }
+            nightDimActive = false
+            hideDimOverlayUnlessNeeded(duration: nightDimFadeDuration)
+            return
+        }
+        let hour = Calendar.current.component(.hour, from: Date())
+        let within = Self.isWithinHourWindow(hour: hour, startHour: nightDimStartHour, endHour: nightDimEndHour)
+        if within {
+            guard !nightDimActive else { return }
+            nightDimActive = true
+            dimOverlay.show(opacity: currentOverlayOpacity(), duration: nightDimFadeDuration)
+        } else if nightDimActive {
+            nightDimActive = false
+            hideDimOverlayUnlessNeeded(duration: nightDimFadeDuration)
+        }
+    }
+
+    /// Unlike the daytime schedule, a night window is expected to wrap past midnight (e.g. 23 -> 6).
+    static func isWithinHourWindow(hour: Int, startHour: Int, endHour: Int) -> Bool {
+        guard startHour != endHour else { return false }
+        if startHour < endHour {
+            return (startHour..<endHour).contains(hour)
+        }
+        return hour >= startHour || hour < endHour
+    }
+
+    /// The strongest opacity requested among whichever dim sources are currently active.
+    private func currentOverlayOpacity() -> Double {
+        var opacity = 0.0
+        if previewDimActive { opacity = max(opacity, dimOpacity) }
+        if isDimmed { opacity = max(opacity, dimOpacity) }
+        if nightDimActive { opacity = max(opacity, nightDimOpacity) }
+        return opacity
+    }
+
+    private func hideDimOverlayUnlessNeeded(duration: TimeInterval = 0.1) {
+        guard !previewDimActive, !nightDimActive else { return }
+        dimOverlay.hide(duration: duration)
     }
 
     // MARK: - Mouse jiggle

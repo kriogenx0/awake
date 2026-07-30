@@ -27,6 +27,9 @@ struct SettingsView: View {
                 DimDisplaySettingsTab()
                     .tabItem { Label("Display", systemImage: "sun.min") }
 
+                NightDimSettingsTab()
+                    .tabItem { Label("Night Dim", systemImage: "moon") }
+
                 ScheduleSettingsTab()
                     .tabItem { Label("Schedule", systemImage: "calendar") }
             }
@@ -106,13 +109,21 @@ private struct DimDisplaySettingsTab: View {
         }
     }
 
+    private static let anyInteractionMask: NSEvent.EventTypeMask = [
+        .leftMouseDown, .rightMouseDown, .otherMouseDown,
+        .leftMouseDragged, .rightMouseDragged, .otherMouseDragged,
+        .mouseMoved, .scrollWheel,
+        .keyDown, .flagsChanged,
+        .magnify, .swipe, .rotate, .smartMagnify, .gesture
+    ]
+
     private func startPreview() {
         state.previewDim()
         isPreviewingDim = true
-        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .mouseMoved]) { [self] _ in
+        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: Self.anyInteractionMask) { [self] _ in
             stopPreview()
         }
-        localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .mouseMoved]) { [self] event in
+        localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: Self.anyInteractionMask) { [self] event in
             stopPreview()
             return event
         }
@@ -123,6 +134,51 @@ private struct DimDisplaySettingsTab: View {
         isPreviewingDim = false
         if let m = clickMonitor { NSEvent.removeMonitor(m); clickMonitor = nil }
         if let m = localClickMonitor { NSEvent.removeMonitor(m); localClickMonitor = nil }
+    }
+}
+
+private struct NightDimSettingsTab: View {
+    @EnvironmentObject var state: AppState
+
+    var body: some View {
+        Form {
+            Toggle("Dim display late at night", isOn: $state.nightDimEnabled)
+
+            if state.nightDimEnabled {
+                LabeledContent("From") {
+                    Picker("Night From", selection: $state.nightDimStartHour) {
+                        ForEach(0..<24, id: \.self) { Text(hourLabel($0)).tag($0) }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(width: 110)
+                }
+
+                LabeledContent("To") {
+                    Picker("Night To", selection: $state.nightDimEndHour) {
+                        ForEach(0..<24, id: \.self) { Text(hourLabel($0)).tag($0) }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(width: 110)
+                }
+
+                LabeledContent("Overlay Darkness") {
+                    HStack {
+                        Slider(value: $state.nightDimOpacity, in: 0.1...0.8)
+                            .frame(width: 160)
+                        Text("\(Int(state.nightDimOpacity * 100))%")
+                            .foregroundStyle(.secondary)
+                            .frame(width: 36, alignment: .trailing)
+                    }
+                }
+
+                Text("Dims continuously during these hours, regardless of activity or the Stay Awake schedule.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
     }
 }
 
@@ -173,15 +229,15 @@ private struct ScheduleSettingsTab: View {
         }
         .formStyle(.grouped)
     }
+}
 
-    private func hourLabel(_ hour: Int) -> String {
-        var c = DateComponents()
-        c.hour = hour
-        c.minute = 0
-        guard let date = Calendar.current.date(from: c) else { return "\(hour):00" }
-        let f = DateFormatter()
-        f.timeStyle = .short
-        f.dateStyle = .none
-        return f.string(from: date)
-    }
+private func hourLabel(_ hour: Int) -> String {
+    var c = DateComponents()
+    c.hour = hour
+    c.minute = 0
+    guard let date = Calendar.current.date(from: c) else { return "\(hour):00" }
+    let f = DateFormatter()
+    f.timeStyle = .short
+    f.dateStyle = .none
+    return f.string(from: date)
 }

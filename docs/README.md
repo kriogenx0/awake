@@ -8,6 +8,7 @@ A native macOS menubar app that prevents your Mac from sleeping, styled after Ca
 - **Stay Awake** toggle to manually enable/disable sleep prevention
 - **Schedule** — automatically active Monday–Friday, 9 am–6 pm by default (configurable)
 - **Display** options — dim the screen (custom dark overlay) or turn off the display after inactivity
+- **Night Dim** — dims the screen continuously during a configurable late-night window (e.g. 11 pm–6 am), independent of the Stay Awake schedule or activity
 - **Move mouse to stay awake** — nudges the cursor every minute to simulate activity
 - **Launch at login** — starts automatically on login (enabled by default)
 
@@ -41,5 +42,6 @@ Open Settings from the menu bar icon → **Settings…**
 
 - **General** — launch at login, move mouse to stay awake
 - **Display** — inactivity timeout, action (dim overlay or turn off), and overlay darkness
+- **Night Dim** — enable/disable, the start/end hour of the late-night dim window, and its own overlay darkness
 - **Schedule — Days** — which days the schedule is active
 - **Schedule — Hours** — start and end hour for the active window
