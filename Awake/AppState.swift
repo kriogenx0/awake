@@ -303,7 +303,7 @@ class AppState: ObservableObject {
 
     private func applyDisplayPolicy() {
         let idle = Self.activityEventTypes
-            .map { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) }
+            .map { CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: $0) }
             .min() ?? 0
 
         if idle >= displayDimDelay.seconds {
@@ -324,7 +324,7 @@ class AppState: ObservableObject {
                 let wt = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
                     guard let self else { return }
                     let idle = Self.activityEventTypes
-                        .map { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) }
+                        .map { CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: $0) }
                         .min() ?? .infinity
                     if idle < 0.25 {
                         self.wakeFromDim()
