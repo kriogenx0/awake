@@ -133,6 +133,7 @@ class AppState: ObservableObject {
     private var awakeDurationTimer: Timer?
     private var countdownTimer: Timer?
     private var awakeUntil: Date?
+    private var manualOverride = false
     private var displayDidTrigger = false
     private var wakeMonitor: Any?
     private let dimOverlay = DimOverlayController()
@@ -162,12 +163,14 @@ class AppState: ObservableObject {
     func enableCaffeineIndefinitely() {
         clearAwakeDuration()
         enableCaffeine()
+        manualOverride = caffeineActive
     }
 
     func enableCaffeine(for duration: StayAwakeDuration) {
         clearAwakeDuration()
         enableCaffeine()
-        guard caffeineActive else { return }
+        guard caffeineActive else { manualOverride = false; return }
+        manualOverride = true
         activeDuration = duration
         let end = Date().addingTimeInterval(duration.seconds)
         awakeUntil = end
@@ -239,6 +242,7 @@ class AppState: ObservableObject {
         removeWakeMonitor()
         dimOverlay.hide()
         clearAwakeDuration()
+        manualOverride = false
         caffeineActive = false
     }
 
@@ -263,7 +267,7 @@ class AppState: ObservableObject {
         guard let end = awakeUntil else { awakeRemainingText = nil; return }
         let remaining = Int(end.timeIntervalSinceNow.rounded(.up))
         guard remaining > 0 else { awakeRemainingText = nil; return }
-        awakeRemainingText = String(format: "%d:%02d remaining", remaining / 60, remaining % 60)
+        awakeRemainingText = String(format: "%02d:%02d:%02d remaining", remaining / 3600, (remaining % 3600) / 60, remaining % 60)
     }
 
     // MARK: - Display / overlay
@@ -383,7 +387,7 @@ class AppState: ObservableObject {
     }
 
     func updateSchedule() {
-        guard scheduleEnabled else { return }
+        guard scheduleEnabled, !manualOverride else { return }
         if isWithinSchedule() { enableCaffeine() } else { disableCaffeine() }
     }
 
