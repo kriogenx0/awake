@@ -135,11 +135,11 @@ class AppState: ObservableObject {
     private var wakeCheckTimer: Timer?
     private var jiggleTimer: Timer?
     private var awakeDurationTimer: Timer?
-    private var countdownTimer: Timer?
     private var awakeUntil: Date?
     private var manualOverride = false
     private var displayDidTrigger = false
     private var wakeMonitor: Any?
+    private var menuTrackingObserver: Any?
     private let dimOverlay = DimOverlayController()
 
     init() {
@@ -158,6 +158,7 @@ class AppState: ObservableObject {
 
         jiggleMouse = d.object(forKey: "jiggleMouse") as? Bool ?? false
         setupScheduleTimer()
+        setupMenuTrackingObserver()
         if jiggleMouse { startJiggleTimer() }
         updateSchedule()
     }
@@ -183,7 +184,7 @@ class AppState: ObservableObject {
         }
         RunLoop.main.add(t, forMode: .common)
         awakeDurationTimer = t
-        startCountdown()
+        updateRemainingText()
     }
 
     func turnOff() {
@@ -252,19 +253,19 @@ class AppState: ObservableObject {
 
     private func clearAwakeDuration() {
         awakeDurationTimer?.invalidate(); awakeDurationTimer = nil
-        countdownTimer?.invalidate(); countdownTimer = nil
         activeDuration = nil
         awakeUntil = nil
         countdown.text = nil
     }
 
-    private func startCountdown() {
-        updateRemainingText()
-        let t = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+    private func setupMenuTrackingObserver() {
+        menuTrackingObserver = NotificationCenter.default.addObserver(
+            forName: NSMenu.didBeginTrackingNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
             self?.updateRemainingText()
         }
-        RunLoop.main.add(t, forMode: .common)
-        countdownTimer = t
     }
 
     private func updateRemainingText() {
@@ -452,8 +453,8 @@ class AppState: ObservableObject {
         wakeCheckTimer?.invalidate()
         jiggleTimer?.invalidate()
         awakeDurationTimer?.invalidate()
-        countdownTimer?.invalidate()
         removeWakeMonitor()
+        if let observer = menuTrackingObserver { NotificationCenter.default.removeObserver(observer) }
         dimOverlay.hide()
         if systemAssertionID != 0 { IOPMAssertionRelease(systemAssertionID) }
         releaseDisplayAssertion()
