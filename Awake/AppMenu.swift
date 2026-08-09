@@ -30,9 +30,8 @@ struct AppMenu: View {
             }
         }
 
-        if let remaining = state.awakeRemainingText {
-            Text(remaining)
-                .foregroundStyle(.secondary)
+        if state.activeDuration != nil {
+            CountdownText(countdown: state.countdown)
         }
 
         Menu("Dim Display After") {
@@ -73,5 +72,16 @@ struct AppMenu: View {
             NSApplication.shared.terminate(nil)
         }
         .keyboardShortcut("q")
+    }
+}
+
+private struct CountdownText: View {
+    @ObservedObject var countdown: CountdownModel
+
+    var body: some View {
+        if let remaining = countdown.text {
+            Text(remaining)
+                .foregroundStyle(.secondary)
+        }
     }
 }

@@ -72,10 +72,14 @@ enum StayAwakeDuration: Int, CaseIterable {
 
 let defaultDimOpacity: Double = 0.8
 
+final class CountdownModel: ObservableObject {
+    @Published var text: String?
+}
+
 class AppState: ObservableObject {
     @Published private(set) var caffeineActive = false
     @Published private(set) var activeDuration: StayAwakeDuration?
-    @Published private(set) var awakeRemainingText: String?
+    let countdown = CountdownModel()
     @Published private(set) var scheduleEnabled: Bool
 
     @Published var startHour: Int {
@@ -251,7 +255,7 @@ class AppState: ObservableObject {
         countdownTimer?.invalidate(); countdownTimer = nil
         activeDuration = nil
         awakeUntil = nil
-        awakeRemainingText = nil
+        countdown.text = nil
     }
 
     private func startCountdown() {
@@ -264,9 +268,9 @@ class AppState: ObservableObject {
     }
 
     private func updateRemainingText() {
-        guard let end = awakeUntil else { awakeRemainingText = nil; return }
+        guard let end = awakeUntil else { countdown.text = nil; return }
         let remaining = Int(end.timeIntervalSinceNow.rounded(.up))
-        guard remaining > 0 else { awakeRemainingText = nil; return }
+        guard remaining > 0 else { countdown.text = nil; return }
         let hours = remaining / 3600
         let minutes = (remaining % 3600) / 60
         let seconds = remaining % 60
@@ -278,7 +282,7 @@ class AppState: ObservableObject {
         } else {
             time = String(seconds)
         }
-        awakeRemainingText = "\(time) remaining"
+        countdown.text = "\(time) remaining"
     }
 
     // MARK: - Display / overlay
