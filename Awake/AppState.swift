@@ -267,7 +267,18 @@ class AppState: ObservableObject {
         guard let end = awakeUntil else { awakeRemainingText = nil; return }
         let remaining = Int(end.timeIntervalSinceNow.rounded(.up))
         guard remaining > 0 else { awakeRemainingText = nil; return }
-        awakeRemainingText = String(format: "%02d:%02d:%02d remaining", remaining / 3600, (remaining % 3600) / 60, remaining % 60)
+        let hours = remaining / 3600
+        let minutes = (remaining % 3600) / 60
+        let seconds = remaining % 60
+        let time: String
+        if hours > 0 {
+            time = String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        } else if minutes > 0 {
+            time = String(format: "%d:%02d", minutes, seconds)
+        } else {
+            time = String(seconds)
+        }
+        awakeRemainingText = "\(time) remaining"
     }
 
     // MARK: - Display / overlay
