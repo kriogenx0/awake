@@ -140,6 +140,8 @@ class AppState: ObservableObject {
     private var displayDidTrigger = false
     private var wakeMonitor: Any?
     private var menuTrackingObserver: Any?
+    private var systemWakeObserver: Any?
+    private var screenUnlockObserver: Any?
     private let dimOverlay = DimOverlayController()
 
     init() {
@@ -159,6 +161,7 @@ class AppState: ObservableObject {
         jiggleMouse = d.object(forKey: "jiggleMouse") as? Bool ?? false
         setupScheduleTimer()
         setupMenuTrackingObserver()
+        setupWakeObservers()
         if jiggleMouse { startJiggleTimer() }
         updateSchedule()
     }
@@ -266,6 +269,32 @@ class AppState: ObservableObject {
         ) { [weak self] _ in
             self?.updateRemainingText()
         }
+    }
+
+    private func setupWakeObservers() {
+        systemWakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.reassertOnWake()
+        }
+        screenUnlockObserver = DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name("com.apple.screenIsUnlocked"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.reassertOnWake()
+        }
+    }
+
+    private func reassertOnWake() {
+        guard caffeineActive else { return }
+        if systemAssertionID != 0 { IOPMAssertionRelease(systemAssertionID) }
+        systemAssertionID = 0
+        releaseDisplayAssertion()
+        caffeineActive = false
+        enableCaffeine()
     }
 
     private func updateRemainingText() {
@@ -455,6 +484,8 @@ class AppState: ObservableObject {
         awakeDurationTimer?.invalidate()
         removeWakeMonitor()
         if let observer = menuTrackingObserver { NotificationCenter.default.removeObserver(observer) }
+        if let observer = systemWakeObserver { NSWorkspace.shared.notificationCenter.removeObserver(observer) }
+        if let observer = screenUnlockObserver { DistributedNotificationCenter.default().removeObserver(observer) }
         dimOverlay.hide()
         if systemAssertionID != 0 { IOPMAssertionRelease(systemAssertionID) }
         releaseDisplayAssertion()
