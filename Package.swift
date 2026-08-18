@@ -8,7 +8,7 @@ let package = Package(
         .target(
             name: "Awake",
             path: "Awake",
-            exclude: ["AwakeApp.swift", "Info.plist"]
+            exclude: ["AwakeApp.swift", "Info.plist", "AppIcon.icns"]
         ),
         .testTarget(
             name: "AwakeTests",

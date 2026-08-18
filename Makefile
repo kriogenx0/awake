@@ -46,7 +46,7 @@ uninstall: close
 reinstall: uninstall install
 
 _scaffold:
-	mkdir -p "$(APP_BUNDLE)/Contents/MacOS"
+	mkdir -p "$(APP_BUNDLE)/Contents/MacOS" "$(APP_BUNDLE)/Contents/Resources"
 	sed \
 		-e 's/$$(EXECUTABLE_NAME)/$(APP_NAME)/g' \
 		-e 's/$$(PRODUCT_BUNDLE_IDENTIFIER)/$(BUNDLE_ID)/g' \
@@ -55,6 +55,7 @@ _scaffold:
 		-e 's/$$(CURRENT_PROJECT_VERSION)/1/g' \
 		-e 's/$$(MACOSX_DEPLOYMENT_TARGET)/13.0/g' \
 		Awake/Info.plist > "$(APP_BUNDLE)/Contents/Info.plist"
+	cp Awake/AppIcon.icns "$(APP_BUNDLE)/Contents/Resources/AppIcon.icns"
 
 _bundle_dev: _scaffold
 	$(SWIFTC) \
