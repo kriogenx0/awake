@@ -32,4 +32,12 @@ final class ScheduleWindowTests: XCTestCase {
     func testInactiveDay() {
         XCTAssertFalse(AppState.isWithinSchedule(weekday: 1, hour: 10, activeDays: weekdays, startHour: 9, endHour: 18))
     }
+
+    func testEndHourBeforeStartHourDoesNotCrash() {
+        XCTAssertFalse(AppState.isWithinSchedule(weekday: 3, hour: 23, activeDays: weekdays, startHour: 22, endHour: 6))
+    }
+
+    func testEndHourEqualToStartHourIsNeverActive() {
+        XCTAssertFalse(AppState.isWithinSchedule(weekday: 3, hour: 9, activeDays: weekdays, startHour: 9, endHour: 9))
+    }
 }

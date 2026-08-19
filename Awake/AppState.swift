@@ -58,12 +58,12 @@ enum StayAwakeDuration: Int, CaseIterable {
 
     var label: String {
         switch self {
-        case .fifteenMinutes: return "15 Minutes"
-        case .thirtyMinutes:  return "30 Minutes"
-        case .oneHour:        return "1 Hour"
-        case .twoHours:       return "2 Hours"
-        case .fourHours:      return "4 Hours"
-        case .eightHours:     return "8 Hours"
+        case .fifteenMinutes: return "15 minutes"
+        case .thirtyMinutes:  return "30 minutes"
+        case .oneHour:        return "1 hour"
+        case .twoHours:       return "2 hours"
+        case .fourHours:      return "4 hours"
+        case .eightHours:     return "8 hours"
         }
     }
 
@@ -89,7 +89,7 @@ class AppState: ObservableObject {
     @Published var endHour: Int {
         didSet { UserDefaults.standard.set(endHour, forKey: "endHour"); updateSchedule() }
     }
-    @Published var activeDays: Set<Int> {
+    @Published private(set) var activeDays: Set<Int> {
         didSet { UserDefaults.standard.set(Array(activeDays), forKey: "activeDays"); updateSchedule() }
     }
     @Published var displayDimDelay: DisplayDimDelay {
@@ -167,7 +167,7 @@ class AppState: ObservableObject {
         updateSchedule()
     }
 
-    // MARK: - Public
+    // MARK: - Public: Stay Awake
 
     func enableCaffeineIndefinitely() {
         clearAwakeDuration()
@@ -183,39 +183,14 @@ class AppState: ObservableObject {
         activeDuration = duration
         let end = Date().addingTimeInterval(duration.seconds)
         awakeUntil = end
-        let t = Timer.scheduledTimer(withTimeInterval: duration.seconds, repeats: false) { [weak self] _ in
+        awakeDurationTimer = scheduledTimer(interval: duration.seconds, repeats: false) { [weak self] _ in
             self?.disableCaffeine()
         }
-        RunLoop.main.add(t, forMode: .common)
-        awakeDurationTimer = t
         updateRemainingText()
     }
 
     func turnOff() {
         disableCaffeine()
-    }
-
-    func setScheduleEnabled(_ enabled: Bool) {
-        scheduleEnabled = enabled
-        UserDefaults.standard.set(enabled, forKey: "scheduleEnabled")
-        if enabled { updateSchedule() } else { disableCaffeine() }
-    }
-
-    func toggleDay(_ day: Int) {
-        var days = activeDays
-        if days.contains(day) { days.remove(day) } else { days.insert(day) }
-        activeDays = days
-    }
-
-    func previewDim() {
-        previewDimActive = true
-        dimOverlay.show(opacity: dimOpacity)
-    }
-
-    func stopPreviewDim() {
-        previewDimActive = false
-        guard !(caffeineActive && displayDidTrigger) else { return }
-        dimOverlay.hide()
     }
 
     var statusText: String {
@@ -292,11 +267,22 @@ class AppState: ObservableObject {
 
     private func reassertOnWake() {
         guard caffeineActive else { return }
-        if systemAssertionID != 0 { IOPMAssertionRelease(systemAssertionID) }
+        IOPMAssertionRelease(systemAssertionID)
         systemAssertionID = 0
         releaseDisplayAssertion()
         caffeineActive = false
         enableCaffeine()
+        if !caffeineActive {
+            // Re-creation failed: fully reset so manualOverride/duration state
+            // doesn't stay silently desynced and timers don't leak.
+            dimCheckTimer?.invalidate(); dimCheckTimer = nil
+            blackTimer?.invalidate(); blackTimer = nil
+            removeWakeMonitor()
+            dimOverlay.hide()
+            clearAwakeDuration()
+            manualOverride = false
+            updateSchedule()
+        }
     }
 
     private func updateRemainingText() {
@@ -319,10 +305,22 @@ class AppState: ObservableObject {
 
     // MARK: - Display / overlay
 
+    func previewDim() {
+        previewDimActive = true
+        dimOverlay.show(opacity: dimOpacity)
+    }
+
+    func stopPreviewDim() {
+        previewDimActive = false
+        guard !(caffeineActive && displayDidTrigger) else { return }
+        dimOverlay.hide()
+    }
+
     private func updateDisplayAssertion() {
         dimCheckTimer?.invalidate()
         dimCheckTimer = nil
         blackTimer?.invalidate(); blackTimer = nil
+        removeWakeMonitor()
         if !previewDimActive { dimOverlay.hide() }
         guard caffeineActive else { return }
         displayDidTrigger = false
@@ -331,11 +329,9 @@ class AppState: ObservableObject {
 
         if displayDimDelay != .never {
             applyDisplayPolicy()
-            let t = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
+            dimCheckTimer = scheduledTimer(interval: 10, repeats: true) { [weak self] _ in
                 self?.applyDisplayPolicy()
             }
-            RunLoop.main.add(t, forMode: .common)
-            dimCheckTimer = t
         }
     }
 
@@ -352,37 +348,34 @@ class AppState: ObservableObject {
         .magnify, .swipe, .rotate, .smartMagnify, .gesture
     ]
 
-    private func applyDisplayPolicy() {
-        let idle = Self.activityEventTypes
+    private static func idleSeconds() -> TimeInterval {
+        activityEventTypes
             .map { CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: $0) }
-            .min() ?? 0
+            .min()!
+    }
+
+    private func applyDisplayPolicy() {
+        let idle = Self.idleSeconds()
 
         if idle >= displayDimDelay.seconds {
             if !displayDidTrigger {
                 displayDidTrigger = true
                 dimOverlay.show(opacity: dimOpacity)
                 if displayBlackDelay != .never {
-                    let t = Timer.scheduledTimer(withTimeInterval: displayBlackDelay.seconds, repeats: false) { [weak self] _ in
+                    blackTimer = scheduledTimer(interval: displayBlackDelay.seconds, repeats: false) { [weak self] _ in
                         guard let self, self.displayDidTrigger else { return }
                         self.dimOverlay.show(opacity: 1.0)
                     }
-                    RunLoop.main.add(t, forMode: .common)
-                    blackTimer = t
                 }
                 wakeMonitor = NSEvent.addGlobalMonitorForEvents(matching: Self.wakeEventMask) { [weak self] _ in
                     self?.wakeFromDim()
                 }
-                let wt = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+                wakeCheckTimer = scheduledTimer(interval: 0.25, repeats: true) { [weak self] _ in
                     guard let self else { return }
-                    let idle = Self.activityEventTypes
-                        .map { CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: $0) }
-                        .min() ?? .infinity
-                    if idle < 0.25 {
+                    if Self.idleSeconds() < 0.25 {
                         self.wakeFromDim()
                     }
                 }
-                RunLoop.main.add(wt, forMode: .common)
-                wakeCheckTimer = wt
             }
         } else {
             displayDidTrigger = false
@@ -426,11 +419,25 @@ class AppState: ObservableObject {
     // MARK: - Schedule
 
     private func setupScheduleTimer() {
-        let timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+        scheduleTimer = scheduledTimer(interval: 60, repeats: true) { [weak self] _ in
             self?.updateSchedule()
         }
-        RunLoop.main.add(timer, forMode: .common)
-        scheduleTimer = timer
+    }
+
+    func setScheduleEnabled(_ enabled: Bool) {
+        scheduleEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: "scheduleEnabled")
+        if enabled {
+            updateSchedule()
+        } else if !manualOverride {
+            disableCaffeine()
+        }
+    }
+
+    func toggleDay(_ day: Int) {
+        var days = activeDays
+        if days.contains(day) { days.remove(day) } else { days.insert(day) }
+        activeDays = days
     }
 
     func updateSchedule() {
@@ -448,18 +455,17 @@ class AppState: ObservableObject {
     }
 
     static func isWithinSchedule(weekday: Int, hour: Int, activeDays: Set<Int>, startHour: Int, endHour: Int) -> Bool {
-        activeDays.contains(weekday) && (startHour..<endHour).contains(hour)
+        guard startHour < endHour else { return false }
+        return activeDays.contains(weekday) && (startHour..<endHour).contains(hour)
     }
 
     // MARK: - Mouse jiggle
 
     private func startJiggleTimer() {
         guard jiggleTimer == nil else { return }
-        let t = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+        jiggleTimer = scheduledTimer(interval: 60, repeats: true) { [weak self] _ in
             self?.performJiggle()
         }
-        RunLoop.main.add(t, forMode: .common)
-        jiggleTimer = t
     }
 
     private func stopJiggleTimer() {
@@ -476,6 +482,14 @@ class AppState: ObservableObject {
             .post(tap: .cgSessionEventTap)
         CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: pos, mouseButton: .left)?
             .post(tap: .cgSessionEventTap)
+    }
+
+    // MARK: - Shared helpers
+
+    private func scheduledTimer(interval: TimeInterval, repeats: Bool, _ block: @escaping (Timer) -> Void) -> Timer {
+        let timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: repeats, block: block)
+        RunLoop.main.add(timer, forMode: .common)
+        return timer
     }
 
     deinit {

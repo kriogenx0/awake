@@ -10,7 +10,7 @@ ARCH        := $(shell uname -m)
 TARGET      := $(ARCH)-apple-macosx13.0
 SWIFTC      := $(shell xcrun --find swiftc)
 
-SOURCES     := Awake/AwakeApp.swift Awake/AppState.swift Awake/AppMenu.swift Awake/ScheduleSettingsView.swift Awake/DimOverlay.swift
+SOURCES     := Awake/AwakeApp.swift Awake/AppState.swift Awake/AppMenu.swift Awake/SettingsView.swift Awake/DimOverlay.swift
 FRAMEWORKS  := -framework SwiftUI -framework AppKit -framework IOKit -framework ServiceManagement
 
 .PHONY: all dev build test open close clean install uninstall reinstall \
