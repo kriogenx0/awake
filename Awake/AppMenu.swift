@@ -61,6 +61,11 @@ struct AppMenu: View {
             set: { state.setScheduleEnabled($0) }
         ))
 
+        if state.scheduleEnabled {
+            Text(state.scheduleActiveNow ? "Currently within scheduled hours" : "Outside scheduled hours")
+                .foregroundStyle(.secondary)
+        }
+
         Button("Settings…") {
             openWindow(id: "settings")
             NSApplication.shared.activate(ignoringOtherApps: true)

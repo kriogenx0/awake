@@ -81,6 +81,7 @@ class AppState: ObservableObject {
     @Published private(set) var activeDuration: StayAwakeDuration?
     let countdown = CountdownModel()
     @Published private(set) var scheduleEnabled: Bool
+    @Published private(set) var scheduleActiveNow = false
 
     @Published var startHour: Int {
         didSet { UserDefaults.standard.set(startHour, forKey: "startHour"); updateSchedule() }
@@ -268,6 +269,7 @@ class AppState: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             self?.updateRemainingText()
+            self?.updateSchedule()
         }
     }
 
@@ -432,8 +434,9 @@ class AppState: ObservableObject {
     }
 
     func updateSchedule() {
+        scheduleActiveNow = isWithinSchedule()
         guard scheduleEnabled, !manualOverride else { return }
-        if isWithinSchedule() { enableCaffeine() } else { disableCaffeine() }
+        if scheduleActiveNow { enableCaffeine() } else { disableCaffeine() }
     }
 
     private func isWithinSchedule() -> Bool {
