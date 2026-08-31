@@ -475,7 +475,7 @@ class AppState: ObservableObject {
 
     private func performJiggle() {
         let nsLoc = NSEvent.mouseLocation
-        let screenHeight = NSScreen.main?.frame.height ?? 800
+        let screenHeight = NSScreen.screens.first?.frame.height ?? 800
         let pos = CGPoint(x: nsLoc.x, y: screenHeight - nsLoc.y)
         let nudge = CGPoint(x: pos.x + 1, y: pos.y)
         CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: nudge, mouseButton: .left)?
