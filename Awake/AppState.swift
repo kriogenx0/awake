@@ -143,6 +143,7 @@ class AppState: ObservableObject {
     private var menuTrackingObserver: Any?
     private var systemWakeObserver: Any?
     private var screenUnlockObserver: Any?
+    private var screenLockObserver: Any?
     private let dimOverlay = DimOverlayController()
 
     init() {
@@ -263,6 +264,24 @@ class AppState: ObservableObject {
         ) { [weak self] _ in
             self?.reassertOnWake()
         }
+        screenLockObserver = DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name("com.apple.screenIsLocked"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleScreenLocked()
+        }
+    }
+
+    private func handleScreenLocked() {
+        // Let the display actually sleep at the lock screen; only the
+        // system-sleep assertion (if any) should keep the Mac itself awake.
+        guard caffeineActive else { return }
+        dimCheckTimer?.invalidate(); dimCheckTimer = nil
+        blackTimer?.invalidate(); blackTimer = nil
+        removeWakeMonitor()
+        dimOverlay.hide()
+        releaseDisplayAssertion()
     }
 
     private func reassertOnWake() {
@@ -503,6 +522,7 @@ class AppState: ObservableObject {
         if let observer = menuTrackingObserver { NotificationCenter.default.removeObserver(observer) }
         if let observer = systemWakeObserver { NSWorkspace.shared.notificationCenter.removeObserver(observer) }
         if let observer = screenUnlockObserver { DistributedNotificationCenter.default().removeObserver(observer) }
+        if let observer = screenLockObserver { DistributedNotificationCenter.default().removeObserver(observer) }
         dimOverlay.hide()
         if systemAssertionID != 0 { IOPMAssertionRelease(systemAssertionID) }
         releaseDisplayAssertion()
