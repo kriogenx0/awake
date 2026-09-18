@@ -138,7 +138,7 @@ class AppState: ObservableObject {
     private var awakeDurationTimer: Timer?
     private var awakeUntil: Date?
     private var manualOverride = false
-    private var displayDidTrigger = false
+    @Published private(set) var isDimmed = false
     private var wakeMonitor: Any?
     private var menuTrackingObserver: Any?
     private var systemWakeObserver: Any?
@@ -331,7 +331,7 @@ class AppState: ObservableObject {
 
     func stopPreviewDim() {
         previewDimActive = false
-        guard !(caffeineActive && displayDidTrigger) else { return }
+        guard !(caffeineActive && isDimmed) else { return }
         dimOverlay.hide()
     }
 
@@ -342,7 +342,7 @@ class AppState: ObservableObject {
         removeWakeMonitor()
         if !previewDimActive { dimOverlay.hide() }
         guard caffeineActive else { return }
-        displayDidTrigger = false
+        isDimmed = false
 
         holdDisplayAssertion()
 
@@ -377,12 +377,12 @@ class AppState: ObservableObject {
         let idle = Self.idleSeconds()
 
         if idle >= displayDimDelay.seconds {
-            if !displayDidTrigger {
-                displayDidTrigger = true
+            if !isDimmed {
+                isDimmed = true
                 dimOverlay.show(opacity: dimOpacity)
                 if displayBlackDelay != .never {
                     blackTimer = scheduledTimer(interval: displayBlackDelay.seconds, repeats: false) { [weak self] _ in
-                        guard let self, self.displayDidTrigger else { return }
+                        guard let self, self.isDimmed else { return }
                         self.dimOverlay.show(opacity: 1.0)
                     }
                 }
@@ -397,7 +397,7 @@ class AppState: ObservableObject {
                 }
             }
         } else {
-            displayDidTrigger = false
+            isDimmed = false
             removeWakeMonitor()
             if !previewDimActive { dimOverlay.hide() }
             holdDisplayAssertion()
@@ -407,7 +407,7 @@ class AppState: ObservableObject {
     private func wakeFromDim() {
         removeWakeMonitor()
         blackTimer?.invalidate(); blackTimer = nil
-        displayDidTrigger = false
+        isDimmed = false
         if !previewDimActive { dimOverlay.hide() }
         holdDisplayAssertion()
     }

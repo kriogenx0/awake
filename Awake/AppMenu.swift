@@ -7,6 +7,11 @@ struct AppMenu: View {
     var body: some View {
         Text(state.statusText)
 
+        if state.isDimmed {
+            Text("Display Dimmed")
+                .foregroundStyle(.secondary)
+        }
+
         Divider()
 
         Menu("Stay Awake") {

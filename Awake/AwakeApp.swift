@@ -9,7 +9,12 @@ struct AwakeApp: App {
             AppMenu()
                 .environmentObject(appState)
         } label: {
-            Image(systemName: appState.caffeineActive ? "cup.and.saucer.fill" : "cup.and.saucer")
+            HStack(spacing: 2) {
+                Image(systemName: appState.caffeineActive ? "cup.and.saucer.fill" : "cup.and.saucer")
+                if appState.isDimmed {
+                    Image(systemName: "moon.fill")
+                }
+            }
         }
         .menuBarExtraStyle(.menu)
 
