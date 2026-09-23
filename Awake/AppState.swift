@@ -274,19 +274,23 @@ class AppState: ObservableObject {
     }
 
     private func handleScreenLocked() {
-        // Let the display actually sleep at the lock screen; only the
-        // system-sleep assertion (if any) should keep the Mac itself awake.
+        // At the lock screen, macOS ties display sleep to whether ANY idle-sleep
+        // assertion is held, not just the display-specific one. Holding
+        // systemAssertionID alone still keeps the display (and the Mac) awake, so
+        // release both here; reassertOnWake() recreates them on unlock.
         guard caffeineActive else { return }
+        if systemAssertionID != 0 { IOPMAssertionRelease(systemAssertionID) }
+        systemAssertionID = 0
+        releaseDisplayAssertion()
         dimCheckTimer?.invalidate(); dimCheckTimer = nil
         blackTimer?.invalidate(); blackTimer = nil
         removeWakeMonitor()
-        dimOverlay.hide()
-        releaseDisplayAssertion()
+        if !previewDimActive { dimOverlay.hide() }
     }
 
     private func reassertOnWake() {
         guard caffeineActive else { return }
-        IOPMAssertionRelease(systemAssertionID)
+        if systemAssertionID != 0 { IOPMAssertionRelease(systemAssertionID) }
         systemAssertionID = 0
         releaseDisplayAssertion()
         caffeineActive = false
@@ -496,11 +500,15 @@ class AppState: ObservableObject {
         let nsLoc = NSEvent.mouseLocation
         let screenHeight = NSScreen.screens.first?.frame.height ?? 800
         let pos = CGPoint(x: nsLoc.x, y: screenHeight - nsLoc.y)
-        let nudge = CGPoint(x: pos.x + 1, y: pos.y)
+        let nudge = CGPoint(x: pos.x + 3, y: pos.y)
         CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: nudge, mouseButton: .left)?
             .post(tap: .cgSessionEventTap)
-        CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: pos, mouseButton: .left)?
-            .post(tap: .cgSessionEventTap)
+        // Without a real gap the WindowServer never renders the nudged position,
+        // so the move-and-revert collapses into a no-op that resets nothing visibly.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: pos, mouseButton: .left)?
+                .post(tap: .cgSessionEventTap)
+        }
     }
 
     // MARK: - Shared helpers
