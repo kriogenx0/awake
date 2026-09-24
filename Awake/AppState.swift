@@ -124,7 +124,7 @@ class AppState: ObservableObject {
     @Published var jiggleMouse: Bool {
         didSet {
             UserDefaults.standard.set(jiggleMouse, forKey: "jiggleMouse")
-            if jiggleMouse { startJiggleTimer() } else { stopJiggleTimer() }
+            if jiggleMouse && caffeineActive { startJiggleTimer() } else { stopJiggleTimer() }
         }
     }
 
@@ -164,7 +164,6 @@ class AppState: ObservableObject {
         setupScheduleTimer()
         setupMenuTrackingObserver()
         setupWakeObservers()
-        if jiggleMouse { startJiggleTimer() }
         updateSchedule()
     }
 
@@ -214,6 +213,7 @@ class AppState: ObservableObject {
         systemAssertionID = id
         caffeineActive = true
         updateDisplayAssertion()
+        if jiggleMouse { startJiggleTimer() }
     }
 
     private func disableCaffeine() {
@@ -225,6 +225,7 @@ class AppState: ObservableObject {
         dimCheckTimer = nil
         blackTimer?.invalidate(); blackTimer = nil
         removeWakeMonitor()
+        stopJiggleTimer()
         dimOverlay.hide()
         clearAwakeDuration()
         manualOverride = false
@@ -285,6 +286,7 @@ class AppState: ObservableObject {
         dimCheckTimer?.invalidate(); dimCheckTimer = nil
         blackTimer?.invalidate(); blackTimer = nil
         removeWakeMonitor()
+        stopJiggleTimer()
         if !previewDimActive { dimOverlay.hide() }
     }
 
@@ -301,6 +303,7 @@ class AppState: ObservableObject {
             dimCheckTimer?.invalidate(); dimCheckTimer = nil
             blackTimer?.invalidate(); blackTimer = nil
             removeWakeMonitor()
+            stopJiggleTimer()
             dimOverlay.hide()
             clearAwakeDuration()
             manualOverride = false
