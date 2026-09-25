@@ -35,7 +35,7 @@ struct SettingsView: View {
             }
             .padding()
         }
-        .frame(minWidth: 420, minHeight: 680)
+        .frame(minWidth: 420)
     }
 }
 
@@ -70,7 +70,7 @@ private struct DimDisplaySettingsTab: View {
                 .frame(width: 120)
             }
 
-            if state.displayDimDelay != .never {
+            Group {
                 LabeledContent("Black Display After") {
                     Picker("black", selection: $state.displayBlackDelay) {
                         ForEach(DisplayBlackDelay.allCases, id: \.rawValue) {
@@ -84,7 +84,7 @@ private struct DimDisplaySettingsTab: View {
 
                 LabeledContent("Overlay Darkness") {
                     HStack {
-                        Slider(value: $state.dimOpacity, in: 0.1...0.95)
+                        Slider(value: $state.dimOpacity, in: 0.1...0.95, step: 0.05)
                             .frame(width: 160)
                         Text("\(Int(state.dimOpacity * 100))%")
                             .foregroundStyle(.secondary)
@@ -102,6 +102,7 @@ private struct DimDisplaySettingsTab: View {
                     }
                 }
             }
+            .disabled(state.displayDimDelay == .never)
         }
         .formStyle(.grouped)
         .onDisappear {
@@ -144,7 +145,7 @@ private struct NightDimSettingsTab: View {
         Form {
             Toggle("Dim display late at night", isOn: $state.nightDimEnabled)
 
-            if state.nightDimEnabled {
+            Group {
                 LabeledContent("From") {
                     Picker("Night From", selection: $state.nightDimStartHour) {
                         ForEach(0..<24, id: \.self) { Text(hourLabel($0)).tag($0) }
@@ -165,7 +166,7 @@ private struct NightDimSettingsTab: View {
 
                 LabeledContent("Overlay Darkness") {
                     HStack {
-                        Slider(value: $state.nightDimOpacity, in: 0.1...0.8)
+                        Slider(value: $state.nightDimOpacity, in: 0.1...0.8, step: 0.05)
                             .frame(width: 160)
                         Text("\(Int(state.nightDimOpacity * 100))%")
                             .foregroundStyle(.secondary)
@@ -177,6 +178,7 @@ private struct NightDimSettingsTab: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            .disabled(!state.nightDimEnabled)
         }
         .formStyle(.grouped)
     }
