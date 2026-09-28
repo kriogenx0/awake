@@ -14,19 +14,26 @@ SOURCES     := Awake/AwakeApp.swift Awake/AppState.swift Awake/AppMenu.swift Awa
 FRAMEWORKS  := -framework SwiftUI -framework AppKit -framework IOKit -framework ServiceManagement
 
 .PHONY: all dev build test open close clean install uninstall reinstall \
-        _bundle_dev _bundle_release _scaffold
+        _bundle_dev _bundle_release _scaffold _check_xcode
 
 all: dev
 
 test:
 	swift test --disable-sandbox
 
-dev: close clean _bundle_dev
+_check_xcode:
+	@xcodebuild -version >/dev/null 2>&1 || { \
+		echo "error: full Xcode is required to build $(APP_NAME) (the SwiftUI @State macro plugin isn't in Command Line Tools alone)."; \
+		echo "Install Xcode from the App Store, then run: sudo xcode-select -s /Applications/Xcode.app"; \
+		exit 1; \
+	}
+
+dev: _check_xcode close clean _bundle_dev
 	open "$(APP_BUNDLE)"
 
-build: _bundle_release
+build: _check_xcode _bundle_release
 
-open: close _bundle_release
+open: _check_xcode close _bundle_release
 	open "$(APP_BUNDLE)"
 
 close:
@@ -40,7 +47,7 @@ close:
 clean:
 	rm -rf "$(BUILD_DIR)"
 
-install: close _bundle_release
+install: _check_xcode close _bundle_release
 	rm -rf "$(INSTALL_DIR)/$(APP_NAME).app"
 	cp -r "$(APP_BUNDLE)" "$(INSTALL_DIR)/$(APP_NAME).app"
 	open "$(INSTALL_DIR)/$(APP_NAME).app"
