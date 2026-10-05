@@ -143,6 +143,9 @@ class AppState: ObservableObject {
             if jiggleMouse && caffeineActive { startJiggleTimer() } else { stopJiggleTimer() }
         }
     }
+    @Published var jiggleBig: Bool {
+        didSet { UserDefaults.standard.set(jiggleBig, forKey: "jiggleBig") }
+    }
 
     private var systemAssertionID: IOPMAssertionID = 0
     private var displayAssertionID: IOPMAssertionID = 0
@@ -181,6 +184,7 @@ class AppState: ObservableObject {
         launchAtLogin = service.status == .enabled
 
         jiggleMouse = d.object(forKey: "jiggleMouse") as? Bool ?? false
+        jiggleBig = d.object(forKey: "jiggleBig") as? Bool ?? false
         setupScheduleTimer()
         setupMenuTrackingObserver()
         setupWakeObservers()
@@ -567,18 +571,48 @@ class AppState: ObservableObject {
         jiggleTimer = nil
     }
 
+    private static let bigJiggleDistance: CGFloat = 500
+    private static let shiftKeyCode: CGKeyCode = 56  // Left Shift: does nothing on its own, but counts as keyboard activity
+
+    /// Moves `distance` px horizontally, toward whichever side of `bounds` has more room,
+    /// clamped so the target stays on screen.
+    static func bigJiggleTarget(from pos: CGPoint, in bounds: CGRect, distance: CGFloat = bigJiggleDistance) -> CGPoint {
+        let goRight = bounds.maxX - pos.x >= pos.x - bounds.minX
+        let x = goRight ? min(pos.x + distance, bounds.maxX - 1) : max(pos.x - distance, bounds.minX)
+        return CGPoint(x: x, y: pos.y)
+    }
+
     private func performJiggle() {
         let nsLoc = NSEvent.mouseLocation
         let screenHeight = NSScreen.screens.first?.frame.height ?? 800
         let pos = CGPoint(x: nsLoc.x, y: screenHeight - nsLoc.y)
-        let nudge = CGPoint(x: pos.x + 3, y: pos.y)
+        let nudge: CGPoint
+        if jiggleBig {
+            var display = CGMainDisplayID()
+            var count: UInt32 = 0
+            CGGetDisplaysWithPoint(pos, 1, &display, &count)
+            nudge = Self.bigJiggleTarget(from: pos, in: CGDisplayBounds(display))
+            postSafeKeyPress()
+        } else {
+            nudge = CGPoint(x: pos.x + 3, y: pos.y)
+        }
         CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: nudge, mouseButton: .left)?
             .post(tap: .cgSessionEventTap)
         // Without a real gap the WindowServer never renders the nudged position,
         // so the move-and-revert collapses into a no-op that resets nothing visibly.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + (jiggleBig ? 0.25 : 0.05)) {
             CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: pos, mouseButton: .left)?
                 .post(tap: .cgSessionEventTap)
+        }
+    }
+
+    private func postSafeKeyPress() {
+        // Modifier presses arrive as flagsChanged events, not keyDown/keyUp.
+        for keyDown in [true, false] {
+            guard let event = CGEvent(keyboardEventSource: nil, virtualKey: Self.shiftKeyCode, keyDown: keyDown) else { continue }
+            event.type = .flagsChanged
+            event.flags = keyDown ? .maskShift : []
+            event.post(tap: .cgSessionEventTap)
         }
     }
 

@@ -67,4 +67,19 @@ final class NightDimWindowTests: XCTestCase {
     func testEqualStartAndEndIsAlwaysFalse() {
         XCTAssertFalse(AppState.isWithinHourWindow(hour: 5, startHour: 9, endHour: 9))
     }
+
+    func testBigJiggleGoesRightWhenMoreRoomOnRight() {
+        let t = AppState.bigJiggleTarget(from: CGPoint(x: 200, y: 300), in: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+        XCTAssertEqual(t, CGPoint(x: 700, y: 300))
+    }
+
+    func testBigJiggleGoesLeftNearRightEdge() {
+        let t = AppState.bigJiggleTarget(from: CGPoint(x: 1800, y: 300), in: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+        XCTAssertEqual(t, CGPoint(x: 1300, y: 300))
+    }
+
+    func testBigJiggleClampsToNarrowScreen() {
+        let t = AppState.bigJiggleTarget(from: CGPoint(x: 100, y: 50), in: CGRect(x: 0, y: 0, width: 400, height: 300))
+        XCTAssertEqual(t, CGPoint(x: 399, y: 50))
+    }
 }

@@ -46,6 +46,8 @@ private struct GeneralSettingsTab: View {
         Form {
             Toggle("Launch at login", isOn: $state.launchAtLogin)
             Toggle("Periodically move cursor to stay awake", isOn: $state.jiggleMouse)
+            Toggle("Move farther (500 px) and tap Shift", isOn: $state.jiggleBig)
+                .disabled(!state.jiggleMouse)
         }
         .formStyle(.grouped)
     }
