@@ -405,17 +405,19 @@ class AppState: ObservableObject {
             .min()!
     }
 
+    private let idleDimFadeDuration: TimeInterval = 5
+
     private func applyDisplayPolicy() {
         let idle = Self.idleSeconds()
 
         if idle >= displayDimDelay.seconds {
             if !isDimmed {
                 isDimmed = true
-                dimOverlay.show(opacity: dimOpacity)
+                dimOverlay.show(opacity: dimOpacity, duration: idleDimFadeDuration)
                 if displayBlackDelay != .never {
                     blackTimer = scheduledTimer(interval: displayBlackDelay.seconds, repeats: false) { [weak self] _ in
                         guard let self, self.isDimmed else { return }
-                        self.dimOverlay.show(opacity: 1.0)
+                        self.dimOverlay.show(opacity: 1.0, duration: self.idleDimFadeDuration)
                     }
                 }
                 wakeMonitor = NSEvent.addGlobalMonitorForEvents(matching: Self.wakeEventMask) { [weak self] _ in

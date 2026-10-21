@@ -10,7 +10,7 @@ final class DimOverlayController {
     func show(opacity: Double, duration: TimeInterval = 0.1) {
         currentOpacity = opacity
         if !windows.isEmpty {
-            windows.forEach { $0.backgroundColor = NSColor.black.withAlphaComponent(opacity) }
+            windows.forEach { setOpacity(opacity, on: $0, duration: duration) }
             return
         }
         rebuildWindows(animated: true, duration: duration)
@@ -29,6 +29,18 @@ final class DimOverlayController {
         })
     }
 
+    /// Window background colors don't animate, so the tint lives on the content view's layer.
+    private func setOpacity(_ opacity: Double, on window: NSWindow, duration: TimeInterval) {
+        guard let layer = window.contentView?.layer else { return }
+        let target = NSColor.black.withAlphaComponent(opacity).cgColor
+        let anim = CABasicAnimation(keyPath: "backgroundColor")
+        anim.fromValue = layer.presentation()?.backgroundColor ?? layer.backgroundColor
+        anim.toValue = target
+        anim.duration = duration
+        layer.backgroundColor = target
+        layer.add(anim, forKey: "backgroundColor")
+    }
+
     private func rebuildWindows(animated: Bool, duration: TimeInterval = 0.1) {
         windows = NSScreen.screens.map { screen in
             let window = NSWindow(
@@ -44,7 +56,9 @@ final class DimOverlayController {
             window.ignoresMouseEvents = true
             window.isReleasedWhenClosed = false
             window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
-            window.backgroundColor = NSColor.black.withAlphaComponent(currentOpacity)
+            window.backgroundColor = .clear
+            window.contentView?.wantsLayer = true
+            window.contentView?.layer?.backgroundColor = NSColor.black.withAlphaComponent(currentOpacity).cgColor
             window.alphaValue = animated ? 0 : 1
             window.orderFrontRegardless()
             return window
