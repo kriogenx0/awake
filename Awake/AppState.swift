@@ -48,6 +48,41 @@ enum DisplayBlackDelay: Int, CaseIterable {
     var seconds: TimeInterval { TimeInterval(rawValue) * 60 }
 }
 
+enum DisplayWakeTrigger: String, CaseIterable {
+    case click
+    case anyEvent
+
+    var label: String {
+        switch self {
+        case .click: return "A click"
+        case .anyEvent: return "Any activity"
+        }
+    }
+
+    var activityEventTypes: [CGEventType] {
+        let clicks: [CGEventType] = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        switch self {
+        case .click: return clicks
+        case .anyEvent:
+            return clicks + [.mouseMoved, .leftMouseDragged, .rightMouseDragged,
+                             .otherMouseDragged, .keyDown, .flagsChanged, .scrollWheel,
+                             .tabletPointer, .tabletProximity]
+        }
+    }
+
+    var eventMask: NSEvent.EventTypeMask {
+        switch self {
+        case .click:
+            return [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        case .anyEvent:
+            return [.leftMouseDown, .rightMouseDown, .otherMouseDown,
+                    .mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged,
+                    .keyDown, .flagsChanged, .scrollWheel, .tabletPoint, .tabletProximity,
+                    .magnify, .swipe, .rotate, .smartMagnify, .gesture]
+        }
+    }
+}
+
 enum StayAwakeDuration: Int, CaseIterable {
     case fifteenMinutes = 15
     case thirtyMinutes = 30
@@ -102,6 +137,12 @@ class AppState: ObservableObject {
         didSet {
             UserDefaults.standard.set(displayBlackDelay.rawValue, forKey: "displayBlackDelay")
             updateDisplayAssertion()
+        }
+    }
+    @Published var displayWakeTrigger: DisplayWakeTrigger {
+        didSet {
+            UserDefaults.standard.set(displayWakeTrigger.rawValue, forKey: "displayWakeTrigger")
+            if isDimmed { installWakeMonitor() }
         }
     }
     @Published var dimOpacity: Double {
@@ -173,6 +214,7 @@ class AppState: ObservableObject {
         activeDays            = Set(d.array(forKey: "activeDays")    as? [Int] ?? [2, 3, 4, 5, 6])
         displayDimDelay       = DisplayDimDelay(rawValue: d.object(forKey: "displayDimDelay") as? Int ?? 0) ?? .never
         displayBlackDelay     = DisplayBlackDelay(rawValue: d.object(forKey: "displayBlackDelay") as? Int ?? 0) ?? .never
+        displayWakeTrigger    = DisplayWakeTrigger(rawValue: d.string(forKey: "displayWakeTrigger") ?? "") ?? .anyEvent
         dimOpacity            = d.object(forKey: "dimOpacity")       as? Double ?? defaultDimOpacity
         nightDimEnabled       = d.object(forKey: "nightDimEnabled")  as? Bool ?? false
         nightDimStartHour     = d.object(forKey: "nightDimStartHour") as? Int ?? 23
@@ -386,21 +428,8 @@ class AppState: ObservableObject {
         }
     }
 
-    private static let activityEventTypes: [CGEventType] = [
-        .mouseMoved, .leftMouseDown, .rightMouseDown, .otherMouseDown,
-        .leftMouseDragged, .rightMouseDragged, .otherMouseDragged,
-        .keyDown, .flagsChanged, .scrollWheel, .tabletPointer, .tabletProximity
-    ]
-
-    private static let wakeEventMask: NSEvent.EventTypeMask = [
-        .leftMouseDown, .rightMouseDown, .otherMouseDown,
-        .leftMouseDragged, .rightMouseDragged, .otherMouseDragged,
-        .keyDown, .flagsChanged, .scrollWheel,
-        .magnify, .swipe, .rotate, .smartMagnify, .gesture
-    ]
-
-    private static func idleSeconds() -> TimeInterval {
-        activityEventTypes
+    private static func idleSeconds(for trigger: DisplayWakeTrigger = .anyEvent) -> TimeInterval {
+        trigger.activityEventTypes
             .map { CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: $0) }
             .min()!
     }
@@ -408,33 +437,41 @@ class AppState: ObservableObject {
     private let idleDimFadeDuration: TimeInterval = 5
 
     private func applyDisplayPolicy() {
+        // Once dimmed, only the chosen wake trigger may dismiss the overlay.
+        guard !isDimmed else { return }
         let idle = Self.idleSeconds()
 
         if idle >= displayDimDelay.seconds {
-            if !isDimmed {
-                isDimmed = true
-                dimOverlay.show(opacity: dimOpacity, duration: idleDimFadeDuration)
-                if displayBlackDelay != .never {
-                    blackTimer = scheduledTimer(interval: displayBlackDelay.seconds, repeats: false) { [weak self] _ in
-                        guard let self, self.isDimmed else { return }
-                        self.dimOverlay.show(opacity: 1.0, duration: self.idleDimFadeDuration)
-                    }
-                }
-                wakeMonitor = NSEvent.addGlobalMonitorForEvents(matching: Self.wakeEventMask) { [weak self] _ in
-                    self?.wakeFromDim()
-                }
-                wakeCheckTimer = scheduledTimer(interval: 0.25, repeats: true) { [weak self] _ in
-                    guard let self else { return }
-                    if Self.idleSeconds() < 0.25 {
-                        self.wakeFromDim()
-                    }
+            isDimmed = true
+            dimOverlay.show(opacity: dimOpacity, duration: idleDimFadeDuration)
+            if displayBlackDelay != .never {
+                blackTimer = scheduledTimer(interval: displayBlackDelay.seconds, repeats: false) { [weak self] _ in
+                    guard let self, self.isDimmed else { return }
+                    self.dimOverlay.show(opacity: 1.0, duration: self.idleDimFadeDuration)
                 }
             }
+            installWakeMonitor()
         } else {
-            isDimmed = false
             removeWakeMonitor()
             hideDimOverlayUnlessNeeded()
             holdDisplayAssertion()
+        }
+    }
+
+    private func installWakeMonitor() {
+        removeWakeMonitor()
+        wakeMonitor = NSEvent.addGlobalMonitorForEvents(matching: displayWakeTrigger.eventMask) { [weak self] _ in
+            self?.wakeFromDim()
+        }
+        // Poll the same event types to cover activity within Awake and events
+        // unavailable to the global monitor, including keyboard input.
+        let monitoringStarted = ProcessInfo.processInfo.systemUptime
+        wakeCheckTimer = scheduledTimer(interval: 0.25, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            let elapsed = ProcessInfo.processInfo.systemUptime - monitoringStarted
+            if Self.idleSeconds(for: self.displayWakeTrigger) < elapsed {
+                self.wakeFromDim()
+            }
         }
     }
 

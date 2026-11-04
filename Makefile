@@ -5,10 +5,10 @@ BUILD_DIR   := build
 APP_BUNDLE  := $(BUILD_DIR)/$(APP_NAME).app
 INSTALL_DIR := /Applications
 
-SDK         := $(shell xcrun --show-sdk-path)
+SDK         := $(shell xcrun --sdk macosx --show-sdk-path)
 ARCH        := $(shell uname -m)
 TARGET      := $(ARCH)-apple-macosx13.0
-SWIFTC      := $(shell xcrun --find swiftc)
+SWIFTC      := $(shell xcrun --sdk macosx --find swiftc)
 
 SOURCES     := Awake/AwakeApp.swift Awake/AppState.swift Awake/AppMenu.swift Awake/SettingsView.swift Awake/DimOverlay.swift
 FRAMEWORKS  := -framework SwiftUI -framework AppKit -framework IOKit -framework ServiceManagement
@@ -18,8 +18,8 @@ FRAMEWORKS  := -framework SwiftUI -framework AppKit -framework IOKit -framework 
 
 all: dev
 
-test:
-	swift test --disable-sandbox
+test: _check_xcode
+	xcrun --sdk macosx swift test --disable-sandbox --sdk "$(SDK)"
 
 _check_xcode:
 	@xcodebuild -version >/dev/null 2>&1 || { \
@@ -37,7 +37,7 @@ open: _check_xcode close _bundle_release
 	open "$(APP_BUNDLE)"
 
 close:
-	-pkill -x "$(APP_NAME)"
+	@pkill -x "$(APP_NAME)" 2>/dev/null || true
 	@for i in 1 2 3 4 5 6 7 8 9 10; do \
 		pgrep -x "$(APP_NAME)" >/dev/null || exit 0; \
 		sleep 0.2; \

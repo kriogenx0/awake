@@ -1,5 +1,23 @@
 import XCTest
+import AppKit
 @testable import Awake
+
+final class DisplayWakeTriggerTests: XCTestCase {
+    func testClickOnlyAcceptsMouseButtonsInMonitorAndPolling() {
+        let trigger = DisplayWakeTrigger.click
+        XCTAssertEqual(trigger.eventMask, [.leftMouseDown, .rightMouseDown, .otherMouseDown])
+        XCTAssertEqual(trigger.activityEventTypes, [.leftMouseDown, .rightMouseDown, .otherMouseDown])
+    }
+
+    func testAnyActivityIncludesMotionTypingAndScrollingInMonitorAndPolling() {
+        let trigger = DisplayWakeTrigger.anyEvent
+        XCTAssertTrue(trigger.eventMask.contains([.mouseMoved, .keyDown, .flagsChanged, .scrollWheel]))
+        for event: CGEventType in [.mouseMoved, .keyDown, .flagsChanged, .scrollWheel] {
+            XCTAssertTrue(trigger.activityEventTypes.contains(event))
+            XCTAssertFalse(DisplayWakeTrigger.click.activityEventTypes.contains(event))
+        }
+    }
+}
 
 final class DisplayDelayTests: XCTestCase {
     func testDimDelaySecondsConversion() {

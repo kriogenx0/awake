@@ -18,7 +18,8 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .padding()
+            .padding(.horizontal)
+            .padding(.vertical, 8)
 
             TabView {
                 GeneralSettingsTab()
@@ -31,11 +32,13 @@ struct SettingsView: View {
                     .tabItem { Label("Night Dim", systemImage: "moon") }
 
                 ScheduleSettingsTab()
-                    .tabItem { Label("Schedule", systemImage: "calendar") }
+                    .tabItem { Label("Stay Awake", systemImage: "calendar") }
             }
-            .padding()
+            .padding(.horizontal)
+            .padding(.bottom, 12)
         }
         .frame(minWidth: 420)
+        .frame(height: 360)
     }
 }
 
@@ -61,30 +64,19 @@ private struct DimDisplaySettingsTab: View {
 
     var body: some View {
         Form {
-            LabeledContent("Dim Display After") {
-                Picker("duration", selection: $state.displayDimDelay) {
-                    ForEach(DisplayDimDelay.allCases, id: \.rawValue) {
-                        Text($0.label).tag($0)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .frame(width: 120)
-            }
-
-            Group {
-                LabeledContent("Black Display After") {
-                    Picker("black", selection: $state.displayBlackDelay) {
-                        ForEach(DisplayBlackDelay.allCases, id: \.rawValue) {
+            Section {
+                LabeledContent("Dim Display After") {
+                    Picker("duration", selection: $state.displayDimDelay) {
+                        ForEach(DisplayDimDelay.allCases, id: \.rawValue) {
                             Text($0.label).tag($0)
                         }
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
-                    .frame(width: 150)
+                    .frame(width: 120)
                 }
 
-                LabeledContent("Overlay Darkness") {
+                LabeledContent("Dim Darkness") {
                     HStack {
                         Slider(value: $state.dimOpacity, in: 0.1...0.95, step: 0.05)
                             .frame(width: 160)
@@ -93,6 +85,7 @@ private struct DimDisplaySettingsTab: View {
                             .frame(width: 36, alignment: .trailing)
                     }
                 }
+                .disabled(state.displayDimDelay == .never)
 
                 LabeledContent("Preview") {
                     Button(isPreviewingDim ? "Stop Preview" : "Preview Dim") {
@@ -103,6 +96,27 @@ private struct DimDisplaySettingsTab: View {
                         }
                     }
                 }
+                .disabled(state.displayDimDelay == .never)
+            }
+
+            Section {
+                Picker("Wake Display With", selection: $state.displayWakeTrigger) {
+                    ForEach(DisplayWakeTrigger.allCases, id: \.self) { trigger in
+                        Text(trigger.label).tag(trigger)
+                    }
+                }
+                .pickerStyle(.menu)
+
+                LabeledContent("Black Display After") {
+                    Picker("black", selection: $state.displayBlackDelay) {
+                        ForEach(DisplayBlackDelay.allCases, id: \.rawValue) {
+                            Text($0.label).tag($0)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(width: 150)
+                }
             }
             .disabled(state.displayDimDelay == .never)
         }
@@ -110,23 +124,21 @@ private struct DimDisplaySettingsTab: View {
         .onDisappear {
             if isPreviewingDim { stopPreview() }
         }
+        .onChange(of: state.displayWakeTrigger) { _ in
+            if isPreviewingDim {
+                stopPreview()
+                startPreview()
+            }
+        }
     }
-
-    private static let anyInteractionMask: NSEvent.EventTypeMask = [
-        .leftMouseDown, .rightMouseDown, .otherMouseDown,
-        .leftMouseDragged, .rightMouseDragged, .otherMouseDragged,
-        .mouseMoved, .scrollWheel,
-        .keyDown, .flagsChanged,
-        .magnify, .swipe, .rotate, .smartMagnify, .gesture
-    ]
 
     private func startPreview() {
         state.previewDim()
         isPreviewingDim = true
-        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: Self.anyInteractionMask) { [self] _ in
+        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: state.displayWakeTrigger.eventMask) { [self] _ in
             stopPreview()
         }
-        localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: Self.anyInteractionMask) { [self] event in
+        localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: state.displayWakeTrigger.eventMask) { [self] event in
             stopPreview()
             return event
         }
