@@ -39,6 +39,8 @@ struct AppMenu: View {
             CountdownText(countdown: state.countdown)
         }
 
+        Toggle("Dim Display When Idle", isOn: $state.idleDimEnabled)
+
         Menu("Dim Display After") {
             ForEach(DisplayDimDelay.allCases, id: \.rawValue) { option in
                 Toggle(option.label, isOn: Binding(
@@ -48,7 +50,7 @@ struct AppMenu: View {
             }
         }
 
-        if state.displayDimDelay != .never {
+        if state.idleDimEnabled && state.displayDimDelay != .never {
             Menu("Black Display After") {
                 ForEach(DisplayBlackDelay.allCases, id: \.rawValue) { option in
                     Toggle(option.label, isOn: Binding(

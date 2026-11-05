@@ -135,6 +135,12 @@ class AppState: ObservableObject {
             updateDisplayAssertion()
         }
     }
+    @Published var idleDimEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(idleDimEnabled, forKey: "idleDimEnabled")
+            updateDisplayAssertion()
+        }
+    }
     @Published var displayBlackDelay: DisplayBlackDelay {
         didSet {
             UserDefaults.standard.set(displayBlackDelay.rawValue, forKey: "displayBlackDelay")
@@ -222,6 +228,7 @@ class AppState: ObservableObject {
         endHour               = d.object(forKey: "endHour")          as? Int  ?? 18
         activeDays            = Set(d.array(forKey: "activeDays")    as? [Int] ?? [2, 3, 4, 5, 6])
         displayDimDelay       = DisplayDimDelay(rawValue: d.object(forKey: "displayDimDelay") as? Int ?? 0) ?? .never
+        idleDimEnabled        = d.object(forKey: "idleDimEnabled")   as? Bool ?? true
         displayBlackDelay     = DisplayBlackDelay(rawValue: d.object(forKey: "displayBlackDelay") as? Int ?? 0) ?? .never
         displayWakeTrigger    = DisplayWakeTrigger(rawValue: d.string(forKey: "displayWakeTrigger") ?? "") ?? .anyEvent
         dimOpacity            = d.object(forKey: "dimOpacity")       as? Double ?? defaultDimOpacity
@@ -529,7 +536,7 @@ class AppState: ObservableObject {
 
         holdDisplayAssertion()
 
-        if displayDimDelay != .never {
+        if idleDimEnabled && displayDimDelay != .never {
             applyDisplayPolicy()
             dimCheckTimer = scheduledTimer(interval: 10, repeats: true) { [weak self] _ in
                 self?.applyDisplayPolicy()
