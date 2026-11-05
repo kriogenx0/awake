@@ -101,3 +101,71 @@ final class NightDimWindowTests: XCTestCase {
         XCTAssertEqual(t, CGPoint(x: 399, y: 50))
     }
 }
+
+final class BrightnessKeyTests: XCTestCase {
+    func testBrightnessPressesAndRepeats() {
+        XCTAssertEqual(AppState.brightnessDirection(subtype: 8, data: (3 << 16) | 0x0a00), 1)
+        XCTAssertEqual(AppState.brightnessDirection(subtype: 8, data: (2 << 16) | 0x0a01), -1)
+    }
+
+    func testBrightnessReleasesAreConsumedButOtherMediaKeysPassThrough() {
+        XCTAssertTrue(AppState.isBrightnessKey(subtype: 8, data: (3 << 16) | 0x0b00))
+        XCTAssertTrue(AppState.isBrightnessKey(subtype: 8, data: (2 << 16) | 0x0a00))
+        XCTAssertFalse(AppState.isBrightnessKey(subtype: 8, data: 0x0a00))
+        XCTAssertFalse(AppState.isBrightnessKey(subtype: 7, data: (3 << 16) | 0x0a00))
+    }
+
+    func testReleaseAndUnrelatedMediaKeysAreIgnored() {
+        XCTAssertNil(AppState.brightnessDirection(subtype: 8, data: (3 << 16) | 0x0b00))
+        XCTAssertNil(AppState.brightnessDirection(subtype: 8, data: 0x0a00))
+        XCTAssertNil(AppState.brightnessDirection(subtype: 7, data: (3 << 16) | 0x0a00))
+    }
+
+    func testDimmingIsBoundedAndReversible() {
+        var opacity = 0.0
+        for _ in 0..<30 { opacity = AppState.adjustedKeyboardOpacity(opacity, direction: 1) }
+        XCTAssertEqual(opacity, 0.9)
+        for _ in 0..<18 { opacity = AppState.adjustedKeyboardOpacity(opacity, direction: -1) }
+        XCTAssertEqual(opacity, 0)
+        XCTAssertEqual(AppState.adjustedKeyboardOpacity(0, direction: -1), 0)
+    }
+}
+
+final class BacklightFloorTests: XCTestCase {
+    func testBrightnessUpRemovesOverlayBeforeRaisingBacklight() {
+        XCTAssertTrue(BacklightFloorController.shouldUndoHardwareIncrease(brightness: 0.125, hasExtraDimming: true, interceptingKeys: false))
+        XCTAssertFalse(BacklightFloorController.shouldUndoHardwareIncrease(brightness: 0.125, hasExtraDimming: false, interceptingKeys: false))
+        XCTAssertFalse(BacklightFloorController.shouldUndoHardwareIncrease(brightness: 0.0625, hasExtraDimming: true, interceptingKeys: false))
+        XCTAssertFalse(BacklightFloorController.shouldUndoHardwareIncrease(brightness: 0.125, hasExtraDimming: true, interceptingKeys: true))
+    }
+
+    func testCorrectsOnlyValidBrightnessBelowFloor() {
+        XCTAssertTrue(BacklightFloorController.needsCorrection(0))
+        XCTAssertTrue(BacklightFloorController.needsCorrection(0.01))
+        XCTAssertFalse(BacklightFloorController.needsCorrection(0.0625))
+        XCTAssertFalse(BacklightFloorController.needsCorrection(0.5))
+        XCTAssertFalse(BacklightFloorController.needsCorrection(-1))
+        XCTAssertFalse(BacklightFloorController.needsCorrection(.nan))
+    }
+}
+
+final class WakeActivityTests: XCTestCase {
+    func testMouseMovementKeyboardScrollAndMediaKeysWakeDisplay() {
+        let events: [NSEvent.EventTypeMask] = [.mouseMoved, .keyDown, .keyUp, .flagsChanged, .scrollWheel, .systemDefined, .tabletPoint, .leftMouseDown, .swipe]
+        for event in events { XCTAssertTrue(DisplayWakeTrigger.anyEvent.eventMask.contains(event)) }
+    }
+
+    func testClickOnlyModeDoesNotWakeOnMovementOrKeyboard() {
+        XCTAssertTrue(DisplayWakeTrigger.click.eventMask.contains(.leftMouseDown))
+        XCTAssertFalse(DisplayWakeTrigger.click.eventMask.contains(.mouseMoved))
+        XCTAssertFalse(DisplayWakeTrigger.click.eventMask.contains(.keyDown))
+        XCTAssertFalse(DisplayWakeTrigger.click.eventMask.contains(.systemDefined))
+        XCTAssertEqual(DisplayWakeTrigger.click.activityEventTypes, [.leftMouseDown, .rightMouseDown, .otherMouseDown])
+    }
+
+    func testInputIsDetectedEvenAfterDelayedTimer() {
+        XCTAssertTrue(AppState.activityOccurredSinceDim(idleSeconds: 0.6, elapsedSinceDim: 2))
+        XCTAssertFalse(AppState.activityOccurredSinceDim(idleSeconds: 62, elapsedSinceDim: 2))
+        XCTAssertFalse(AppState.activityOccurredSinceDim(idleSeconds: .infinity, elapsedSinceDim: 2))
+    }
+}

@@ -8,6 +8,8 @@ A native macOS menubar app that prevents your Mac from sleeping, styled after Ca
 - **Stay Awake** toggle to manually enable/disable sleep prevention
 - **Schedule** — automatically active Monday–Friday, 9 am–6 pm by default (configurable)
 - **Display** options — dim the screen (custom dark overlay) or turn off the display after inactivity
+- **Keyboard dimming** — brightness-down adds extra overlay darkness (up to 90%); brightness-up removes it. Choose **Enable Brightness Key Control…** and grant Awake Accessibility access, then reopen the menu. Brightness-down lowers the backlight to the floor, then adds extra dimming. Brightness-up removes extra dimming first, then raises the backlight, with a separate 6.25% backlight floor on the unlocked built-in display as a fallback. The floor uses dynamically loaded, private DisplayServices APIs and leaves display sleep alone. Set a comfortable hardware brightness before enabling it. Extra dimming survives mouse activity and can be cleared with **Reset Keyboard Dimming** in the menu; it resets when Awake quits.
+- **Wake on activity** — choose **Any activity** to clear inactivity dimming and blackout on movement, clicks, scrolling, typing, modifier keys, tablet input, or gestures, including while Awake is focused; **A click** restricts waking to mouse clicks.
 - **Night Dim** — dims the screen continuously during a configurable late-night window (e.g. 11 pm–6 am), independent of the Stay Awake schedule or activity
 - **Move mouse to stay awake** — nudges the cursor every minute to simulate activity; an optional stronger mode moves it 500 px and taps Shift (which does nothing on its own)
 - **Launch at login** — starts automatically on login (enabled by default)
@@ -42,6 +44,8 @@ Open Settings from the menu bar icon → **Settings…**
 
 - **General** — launch at login, move mouse to stay awake
 - **Display** — inactivity timeout, action (dim overlay or turn off), and overlay darkness
+- **Keyboard dimming** — brightness-down adds extra overlay darkness (up to 90%); brightness-up removes it. Choose **Enable Brightness Key Control…** and grant Awake Accessibility access, then reopen the menu. Brightness-down lowers the backlight to the floor, then adds extra dimming. Brightness-up removes extra dimming first, then raises the backlight, with a separate 6.25% backlight floor on the unlocked built-in display as a fallback. The floor uses dynamically loaded, private DisplayServices APIs and leaves display sleep alone. Set a comfortable hardware brightness before enabling it. Extra dimming survives mouse activity and can be cleared with **Reset Keyboard Dimming** in the menu; it resets when Awake quits.
+- **Wake on activity** — choose **Any activity** to clear inactivity dimming and blackout on movement, clicks, scrolling, typing, modifier keys, tablet input, or gestures, including while Awake is focused; **A click** restricts waking to mouse clicks.
 - **Night Dim** — enable/disable, the start/end hour of the late-night dim window, and its own overlay darkness
 - **Schedule — Days** — which days the schedule is active
 - **Schedule — Hours** — start and end hour for the active window

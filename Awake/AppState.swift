@@ -65,8 +65,9 @@ enum DisplayWakeTrigger: String, CaseIterable {
         case .click: return clicks
         case .anyEvent:
             return clicks + [.mouseMoved, .leftMouseDragged, .rightMouseDragged,
-                             .otherMouseDragged, .keyDown, .flagsChanged, .scrollWheel,
-                             .tabletPointer, .tabletProximity]
+                             .otherMouseDragged, .keyDown, .keyUp, .flagsChanged, .scrollWheel,
+                             .leftMouseUp, .rightMouseUp, .otherMouseUp,
+                             .tabletPointer, .tabletProximity, CGEventType(rawValue: 14)!]
         }
     }
 
@@ -77,7 +78,8 @@ enum DisplayWakeTrigger: String, CaseIterable {
         case .anyEvent:
             return [.leftMouseDown, .rightMouseDown, .otherMouseDown,
                     .mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged,
-                    .keyDown, .flagsChanged, .scrollWheel, .tabletPoint, .tabletProximity,
+                    .keyDown, .keyUp, .flagsChanged, .scrollWheel, .tabletPoint, .tabletProximity,
+                    .leftMouseUp, .rightMouseUp, .otherMouseUp, .systemDefined,
                     .magnify, .swipe, .rotate, .smartMagnify, .gesture]
         }
     }
@@ -200,11 +202,18 @@ class AppState: ObservableObject {
     private var manualOverride = false
     @Published private(set) var isDimmed = false
     private var wakeMonitor: Any?
+    private var localWakeMonitor: Any?
     private var menuTrackingObserver: Any?
     private var systemWakeObserver: Any?
     private var screenUnlockObserver: Any?
     private var screenLockObserver: Any?
     private let dimOverlay = DimOverlayController()
+    private let backlightFloor = BacklightFloorController()
+    private var brightnessKeyTap: CFMachPort?
+    private var brightnessKeySource: CFRunLoopSource?
+    @Published private(set) var brightnessKeysEnabled = false
+    @Published private(set) var keyboardDimOpacity: Double = 0
+
 
     init() {
         let d = UserDefaults.standard
@@ -227,11 +236,108 @@ class AppState: ObservableObject {
 
         jiggleMouse = d.object(forKey: "jiggleMouse") as? Bool ?? false
         jiggleBig = d.object(forKey: "jiggleBig") as? Bool ?? false
+        backlightFloor.onFloorCrossed = { [weak self] in
+            guard let self else { return }
+            // If interception is unavailable, a hardware step below the floor
+            // becomes an extra overlay step instead of leaving the panel black.
+            if !self.brightnessKeysEnabled {
+                self.keyboardDimOpacity = Self.adjustedKeyboardOpacity(self.keyboardDimOpacity, direction: 1)
+                self.refreshKeyboardDim()
+            }
+        }
+        backlightFloor.onBacklightRaisedWhileDimmed = { [weak self] in
+            guard let self else { return }
+            self.keyboardDimOpacity = Self.adjustedKeyboardOpacity(self.keyboardDimOpacity, direction: -1)
+            self.refreshKeyboardDim()
+        }
+        backlightFloor.start()
+        setupBrightnessKeys()
         setupScheduleTimer()
         setupMenuTrackingObserver()
         setupWakeObservers()
         updateSchedule()
         updateNightDim()
+    }
+
+    // Consume media keys before macOS can lower the backlight to zero.
+    private func setupBrightnessKeys() {
+        guard brightnessKeyTap == nil, AXIsProcessTrusted() else { return }
+        let mask = CGEventMask(1) << 14 // NX_SYSDEFINED
+        guard let tap = CGEvent.tapCreate(
+            tap: .cghidEventTap, place: .headInsertEventTap, options: .defaultTap,
+            eventsOfInterest: mask,
+            callback: { _, type, event, context in
+                guard let context else { return Unmanaged.passUnretained(event) }
+                let state = Unmanaged<AppState>.fromOpaque(context).takeUnretainedValue()
+                if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+                    if let tap = state.brightnessKeyTap { CGEvent.tapEnable(tap: tap, enable: true) }
+                    return Unmanaged.passUnretained(event)
+                }
+                if state.isDimmed && state.displayWakeTrigger == .anyEvent { state.wakeFromDim() }
+                guard let mediaEvent = NSEvent(cgEvent: event),
+                      AppState.isBrightnessKey(subtype: Int(mediaEvent.subtype.rawValue), data: mediaEvent.data1)
+                else { return Unmanaged.passUnretained(event) }
+                state.handleBrightnessKey(mediaEvent)
+                return nil // Suppress presses, repeats AND releases in the system handler.
+            },
+            userInfo: Unmanaged.passUnretained(self).toOpaque()
+        ) else { return }
+        guard let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0) else {
+            CFMachPortInvalidate(tap)
+            return
+        }
+        brightnessKeyTap = tap
+        brightnessKeySource = source
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        CGEvent.tapEnable(tap: tap, enable: true)
+        brightnessKeysEnabled = true
+        backlightFloor.interceptingKeys = true
+    }
+
+    func enableBrightnessKeyControl() {
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options)
+        setupBrightnessKeys()
+    }
+
+    static func isBrightnessKey(subtype: Int, data: Int) -> Bool {
+        guard subtype == 8 else { return false }
+        let key = (data >> 16) & 0xffff
+        return key == 2 || key == 3
+    }
+
+    static func brightnessDirection(subtype: Int, data: Int) -> Int? {
+        guard subtype == 8, (data >> 8) & 0xff == 0x0a else { return nil }
+        switch (data >> 16) & 0xffff {
+        case 3: return 1 // NX_KEYTYPE_BRIGHTNESS_DOWN
+        case 2: return -1 // NX_KEYTYPE_BRIGHTNESS_UP
+        default: return nil
+        }
+    }
+
+    static func adjustedKeyboardOpacity(_ opacity: Double, direction: Int) -> Double {
+        min(0.9, max(0, (opacity * 20 + Double(direction)).rounded() / 20))
+    }
+
+    private func handleBrightnessKey(_ event: NSEvent) {
+        guard let direction = Self.brightnessDirection(subtype: Int(event.subtype.rawValue), data: event.data1) else { return }
+        // Use the normal backlight range first when going down. When going up,
+        // remove extra dimming completely before raising the hardware backlight.
+        if keyboardDimOpacity == 0, backlightFloor.stepBacklight(direction: direction) { return }
+        keyboardDimOpacity = Self.adjustedKeyboardOpacity(keyboardDimOpacity, direction: direction)
+        refreshKeyboardDim()
+    }
+
+    func resetKeyboardDim() {
+        keyboardDimOpacity = 0
+        refreshKeyboardDim()
+    }
+
+    private func refreshKeyboardDim() {
+        backlightFloor.hasExtraDimming = keyboardDimOpacity > 0
+        let opacity = currentOverlayOpacity()
+        if opacity > 0 { dimOverlay.show(opacity: opacity) }
+        else { dimOverlay.hide() }
     }
 
     // MARK: - Public: Stay Awake
@@ -312,6 +418,7 @@ class AppState: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
+            self?.setupBrightnessKeys()
             self?.updateRemainingText()
             self?.updateSchedule()
         }
@@ -342,6 +449,7 @@ class AppState: ObservableObject {
     }
 
     private func handleScreenLocked() {
+        backlightFloor.paused = true
         // At the lock screen, macOS ties display sleep to whether ANY idle-sleep
         // assertion is held, not just the display-specific one. Holding
         // systemAssertionID alone still keeps the display (and the Mac) awake, so
@@ -358,6 +466,7 @@ class AppState: ObservableObject {
     }
 
     private func reassertOnWake() {
+        backlightFloor.paused = false
         guard caffeineActive else { return }
         if systemAssertionID != 0 { IOPMAssertionRelease(systemAssertionID) }
         systemAssertionID = 0
@@ -400,7 +509,7 @@ class AppState: ObservableObject {
 
     func previewDim() {
         previewDimActive = true
-        dimOverlay.show(opacity: dimOpacity)
+        dimOverlay.show(opacity: currentOverlayOpacity())
     }
 
     func stopPreviewDim() {
@@ -428,6 +537,10 @@ class AppState: ObservableObject {
         }
     }
 
+    static func activityOccurredSinceDim(idleSeconds: TimeInterval, elapsedSinceDim: TimeInterval) -> Bool {
+        idleSeconds.isFinite && idleSeconds >= 0 && idleSeconds < elapsedSinceDim
+    }
+
     private static func idleSeconds(for trigger: DisplayWakeTrigger = .anyEvent) -> TimeInterval {
         trigger.activityEventTypes
             .map { CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: $0) }
@@ -443,7 +556,7 @@ class AppState: ObservableObject {
 
         if idle >= displayDimDelay.seconds {
             isDimmed = true
-            dimOverlay.show(opacity: dimOpacity, duration: idleDimFadeDuration)
+            dimOverlay.show(opacity: currentOverlayOpacity(), duration: idleDimFadeDuration)
             if displayBlackDelay != .never {
                 blackTimer = scheduledTimer(interval: displayBlackDelay.seconds, repeats: false) { [weak self] _ in
                     guard let self, self.isDimmed else { return }
@@ -463,13 +576,17 @@ class AppState: ObservableObject {
         wakeMonitor = NSEvent.addGlobalMonitorForEvents(matching: displayWakeTrigger.eventMask) { [weak self] _ in
             self?.wakeFromDim()
         }
+        localWakeMonitor = NSEvent.addLocalMonitorForEvents(matching: displayWakeTrigger.eventMask) { [weak self] event in
+            self?.wakeFromDim()
+            return event
+        }
         // Poll the same event types to cover activity within Awake and events
         // unavailable to the global monitor, including keyboard input.
         let monitoringStarted = ProcessInfo.processInfo.systemUptime
-        wakeCheckTimer = scheduledTimer(interval: 0.25, repeats: true) { [weak self] _ in
+        wakeCheckTimer = scheduledTimer(interval: 0.1, repeats: true) { [weak self] _ in
             guard let self else { return }
             let elapsed = ProcessInfo.processInfo.systemUptime - monitoringStarted
-            if Self.idleSeconds(for: self.displayWakeTrigger) < elapsed {
+            if Self.activityOccurredSinceDim(idleSeconds: Self.idleSeconds(for: self.displayWakeTrigger), elapsedSinceDim: elapsed) {
                 self.wakeFromDim()
             }
         }
@@ -485,6 +602,7 @@ class AppState: ObservableObject {
 
     private func removeWakeMonitor() {
         if let m = wakeMonitor { NSEvent.removeMonitor(m); wakeMonitor = nil }
+        if let m = localWakeMonitor { NSEvent.removeMonitor(m); localWakeMonitor = nil }
         wakeCheckTimer?.invalidate(); wakeCheckTimer = nil
     }
 
@@ -510,6 +628,7 @@ class AppState: ObservableObject {
 
     private func setupScheduleTimer() {
         scheduleTimer = scheduledTimer(interval: 60, repeats: true) { [weak self] _ in
+            self?.setupBrightnessKeys()
             self?.updateSchedule()
             self?.updateNightDim()
         }
@@ -588,12 +707,15 @@ class AppState: ObservableObject {
         if previewDimActive { opacity = max(opacity, dimOpacity) }
         if isDimmed { opacity = max(opacity, dimOpacity) }
         if nightDimActive { opacity = max(opacity, nightDimOpacity) }
-        return opacity
+        return 1 - (1 - opacity) * (1 - keyboardDimOpacity)
     }
 
     private func hideDimOverlayUnlessNeeded(duration: TimeInterval = 0.1) {
-        guard !previewDimActive, !nightDimActive else { return }
-        dimOverlay.hide(duration: duration)
+        if previewDimActive || nightDimActive || keyboardDimOpacity > 0 {
+            dimOverlay.show(opacity: currentOverlayOpacity(), duration: duration)
+        } else {
+            dimOverlay.hide(duration: duration)
+        }
     }
 
     // MARK: - Mouse jiggle
@@ -664,6 +786,8 @@ class AppState: ObservableObject {
     }
 
     deinit {
+        if let source = brightnessKeySource { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
+        if let tap = brightnessKeyTap { CFMachPortInvalidate(tap) }
         scheduleTimer?.invalidate()
         dimCheckTimer?.invalidate()
         blackTimer?.invalidate()

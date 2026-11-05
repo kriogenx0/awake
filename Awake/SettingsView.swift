@@ -121,6 +121,7 @@ private struct DimDisplaySettingsTab: View {
             .disabled(state.displayDimDelay == .never)
         }
         .formStyle(.grouped)
+        .help("Enable Brightness Key Control in Awake’s menu to dim below the backlight minimum. Reset Keyboard Dimming clears the extra dimming.")
         .onDisappear {
             if isPreviewingDim { stopPreview() }
         }

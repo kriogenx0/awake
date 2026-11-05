@@ -76,6 +76,18 @@ struct AppMenu: View {
             set: { state.nightDimEnabled = $0 }
         ))
 
+        if !state.brightnessKeysEnabled {
+            Button("Enable Brightness Key Control…") {
+                state.enableBrightnessKeyControl()
+            }
+        }
+
+        if state.keyboardDimOpacity > 0 {
+            Button("Reset Keyboard Dimming") {
+                state.resetKeyboardDim()
+            }
+        }
+
         Button("Settings…") {
             openWindow(id: "settings")
             NSApplication.shared.activate(ignoringOtherApps: true)
